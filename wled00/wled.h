@@ -223,6 +223,8 @@ WLED_GLOBAL uint16_t transitionDelay _INIT(750);    // default crossfade duratio
 WLED_GLOBAL bool skipFirstLed  _INIT(false);        // ignore first LED in strip (useful if you need the LED as signal repeater)
 WLED_GLOBAL byte briMultiplier _INIT(100);          // % of brightness to set (to limit power, if you set it to 50 and set bri to 255, actual brightness will be 127)
 
+WLED_GLOBAL byte mode _INIT(0); // Tower mode: 0 = disabled, 1 = horizontal alignement, 2 = vertical alignemnt
+
 // User Interface CONFIG
 WLED_GLOBAL char serverDescription[33] _INIT("WLED");  // Name of module
 WLED_GLOBAL bool syncToggleReceive     _INIT(false);   // UIs which only have a single button for sync should toggle send+receive if this is true, only send otherwise

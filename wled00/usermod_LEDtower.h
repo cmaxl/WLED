@@ -4,7 +4,11 @@
 
 //This is an empty v2 usermod template. Please see the file usermod_v2_example.h in the EXAMPLE_v2 usermod folder for documentation on the functions you can use!
 
+#define TOWERHEIGHT 4 // number of LEDs in vertical direction
+#define TOWERWIDTH 4 // number of LEDs in horizontal (around the tower) direction
+#define WIRING 0 // number of LEDs in horizontal (around the tower) direction
 
+//WLED_GLOBAL byte mode _INIT(0); // 0 = disabled, 1 = horizontal alignement, 2 = vertical alignemnt
 
 class LEDtower : public Usermod {
   public:
@@ -12,15 +16,11 @@ class LEDtower : public Usermod {
   private:
     uint32_t color = 0;
     uint8_t
-      mode = 0, // 0 = disabled, 1 = horizontal alignement, 2 = vertical alignemnt
-      towerHeight = 7, // number of LEDs in vertical direction
-      towerWidth = 4, // number of LEDs in horizontal (around the tower) direction
-      wiring = 0, // 0 = zig zag, 1 = bottom to top (strip on each side begins at bottom)
       // standard values for horizontal alignment
-      master = towerHeight,
-      slave = towerWidth,
+      master = TOWERHEIGHT,
+      slave = TOWERWIDTH,
       masterIncrement = 1,
-      slaveIncrement = towerHeight,
+      slaveIncrement = TOWERHEIGHT,
       masterPxl = 0,
       startCopy = 1,
       incrCopy = 1;
@@ -31,6 +31,7 @@ class LEDtower : public Usermod {
     // WS2812FX::Segment& masterSeg = strip.getSegment(0);
     // WS2812FX::Segment* allSegs = strip.getSegments();
 
+    // TODO: add restore function
     // void restoreSegments() {
     //   allSegs = strip.getSegments();
     //   for(uint16_t i=0; i < sizeof(allSegs); i++) {
@@ -38,19 +39,21 @@ class LEDtower : public Usermod {
     //   }
     // }
 
+    // TODO: add reset all segments
+
     void copyPixels() {
         for(uint8_t i=0; i < master; i++) {
           masterPxl = i*masterIncrement;
           // compensate moved pixels when segment is reversed in mode 2
           if(strip.getSegment(0).getOption(SEG_OPTION_REVERSED) && mode == 2) {
-            masterPxl += towerHeight-1;
+            masterPxl += TOWERHEIGHT-1;
             reversed = true;
           }
           else { reversed = false; }
 
           color = strip.getPixelColor(masterPxl);
 
-          switch(wiring) {
+          switch(WIRING) {
             case 1: // bottom to top
               startCopy = 1;
               incrCopy = 1;
@@ -78,7 +81,7 @@ class LEDtower : public Usermod {
               strip.setPixelColor(masterPxl + (ii * slaveIncrement), color);
               if(invert) strip.setPixelColor(masterPxl + (ii * slaveIncrement - 1) - (i * 2), color);
             }
-            else strip.setPixelColor(masterPxl + (ii * slaveIncrement)-towerHeight, color);
+            else strip.setPixelColor(masterPxl + (ii * slaveIncrement)-TOWERHEIGHT, color);
               
           }
         }
@@ -89,21 +92,21 @@ class LEDtower : public Usermod {
       switch(mode){
         case 0:
           // restoreSegments();
-          strip.setSegment(0, 0, towerHeight*towerWidth, 1, 0);
+          strip.setSegment(0, 0, TOWERHEIGHT*TOWERWIDTH, 1, 0);
           break;
         case 1: // horizontal alignment (all LEDs at the same height are the same)
-          strip.setSegment(0, 0, towerHeight, 1, 0);
-          master = towerHeight;
-          slave = towerWidth;
+          strip.setSegment(0, 0, TOWERHEIGHT, 1, 0);
+          master = TOWERHEIGHT;
+          slave = TOWERWIDTH;
           masterIncrement = 1;
-          slaveIncrement = towerHeight;
+          slaveIncrement = TOWERHEIGHT;
           break;
 
         default: // vertical alignment (all LEDs on one side are the same)
-          strip.setSegment(0, 0, towerHeight*towerWidth, 1, towerHeight-1);
-          master = towerWidth;
-          slave = towerHeight;
-          masterIncrement = towerHeight;
+          strip.setSegment(0, 0, TOWERHEIGHT*TOWERWIDTH, 1, TOWERHEIGHT-1);
+          master = TOWERWIDTH;
+          slave = TOWERHEIGHT;
+          masterIncrement = TOWERHEIGHT;
           slaveIncrement = 1;
       }
     }
