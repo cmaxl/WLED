@@ -8,7 +8,7 @@
 #define TOWERWIDTH 4 // number of LEDs in horizontal (around the tower) direction
 #define WIRING 0 // number of LEDs in horizontal (around the tower) direction
 
-//WLED_GLOBAL byte mode _INIT(0); // 0 = disabled, 1 = horizontal alignement, 2 = vertical alignemnt
+//WLED_GLOBAL byte towerMode _INIT(0); // 0 = disabled, 1 = horizontal alignement, 2 = vertical alignemnt
 
 class LEDtower : public Usermod {
   public:
@@ -44,8 +44,8 @@ class LEDtower : public Usermod {
     void copyPixels() {
         for(uint8_t i=0; i < master; i++) {
           masterPxl = i*masterIncrement;
-          // compensate moved pixels when segment is reversed in mode 2
-          if(strip.getSegment(0).getOption(SEG_OPTION_REVERSED) && mode == 2) {
+          // compensate moved pixels when segment is reversed in towerMode 2
+          if(strip.getSegment(0).getOption(SEG_OPTION_REVERSED) && towerMode == 2) {
             masterPxl += TOWERHEIGHT-1;
             reversed = true;
           }
@@ -61,11 +61,11 @@ class LEDtower : public Usermod {
               break;
 
             default: // zig zag
-              switch(mode) {
+              switch(towerMode) {
                 case 1: // horizontal
                   startCopy = 2;
                   incrCopy = 2;
-                  invert = true; // odd columns in mode 1 must be copied in reverse
+                  invert = true; // odd columns in towerMode 1 must be copied in reverse
                   break;
                 default: // vertical
                   startCopy = 1;
@@ -89,7 +89,7 @@ class LEDtower : public Usermod {
     }
 
     void updateMode() {
-      switch(mode){
+      switch(towerMode){
         case 0:
           // restoreSegments();
           strip.setSegment(0, 0, TOWERHEIGHT*TOWERWIDTH, 1, 0);
@@ -118,7 +118,7 @@ class LEDtower : public Usermod {
 
     void loop() {
 
-      if(mode) {
+      if(towerMode) {
         copyPixels();
       }
 
@@ -132,7 +132,7 @@ class LEDtower : public Usermod {
     /**
    * addToJsonInfo() can be used to add custom entries to the /json/info part of the JSON API.
    * 
-   * Add LEDtower mode to jsoninfo
+   * Add LEDtower towerMode to jsoninfo
    */
   void addToJsonInfo(JsonObject &root)
   {
@@ -147,8 +147,8 @@ class LEDtower : public Usermod {
     String towerModeInfo;
 
     // wrapper to flip through all modes
-    switch(mode) {
-      case 0: uiDomString += "1"; towerModeInfo = "Disabled"; break; // uiDomString += "x" holds next mode (added to onclick listener)
+    switch(towerMode) {
+      case 0: uiDomString += "1"; towerModeInfo = "Disabled"; break; // uiDomString += "x" holds next towerMode (added to onclick listener)
       case 1: uiDomString += "2"; towerModeInfo = "Horizontal"; break;
       default: uiDomString += "0"; towerModeInfo = "Vertical";
     }
@@ -166,7 +166,7 @@ class LEDtower : public Usermod {
    */
   void addToJsonState(JsonObject &root)
   {
-    root["TowerMode"] = mode;
+    root["TowerMode"] = towerMode;
   }
 
   /**
@@ -178,7 +178,7 @@ class LEDtower : public Usermod {
   {
     if (root["TowerMode"] != nullptr)
     {
-      mode = root["TowerMode"];
+      towerMode = root["TowerMode"];
       updateConfig = true;
     }
   }
@@ -200,7 +200,7 @@ class LEDtower : public Usermod {
   void addToConfig(JsonObject &root)
   {
     JsonObject top = root.createNestedObject("LEDtower");
-    top["TowerMode"] = mode;
+    top["TowerMode"] = towerMode;
   }
 
   /*
@@ -214,7 +214,7 @@ class LEDtower : public Usermod {
   void readFromConfig(JsonObject &root)
   {
     JsonObject top = root["LEDtower"];
-    mode = top["TowerMode"] | 0;
+    towerMode = top["TowerMode"] | 0;
     updateConfig = true;
   }
 };
