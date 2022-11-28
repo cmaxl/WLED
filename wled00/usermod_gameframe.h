@@ -8,7 +8,8 @@ using namespace sdfat;
 
 #include "IniFileLite.h"
 
-//This is an empty v2 usermod template. Please see the file usermod_v2_example.h in the EXAMPLE_v2 usermod folder for documentation on the functions you can use!
+//TODO add description
+//TODO improve commenring
 
 #define GF_DEBUG_FILES 0
 
@@ -80,7 +81,7 @@ class GameFrame : public Usermod {
       CRGB
         matrix[256] = {0};
 
-  void initSD() {
+  void initSD() { // TODO better sd card handling
     // see if the card is present and can be initialized:
     sdReady = sd.begin(SD_CS, SPI_FULL_SPEED);
     if(sdReady) {
@@ -966,6 +967,7 @@ class GameFrame : public Usermod {
     */
   void connected() {
     //Serial.println("Connected to WiFi!");
+    // TODO: add wifi symbol animation
   }
 
 
@@ -1090,7 +1092,8 @@ class GameFrame : public Usermod {
     uiDomString += "</button>";
     gameframeArr.add(uiDomString);
 
-    // Animation Control butttons
+    // Animation Control butttons 
+    // TODO: make it more appealing
     if(usermodActive) {
       JsonArray animationSettingsArr = user.createNestedArray("Animation: " + String(curFolder)); //name
 
