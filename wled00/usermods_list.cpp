@@ -172,6 +172,8 @@
   #include "../usermods/sd_card/usermod_sd_card.h"
 #endif
 
+#include "usermod_gameframe.h"
+
 void registerUsermods()
 {
 /*
@@ -180,6 +182,7 @@ void registerUsermods()
    * \/ \/ \/
    */
   //usermods.add(new MyExampleUsermod());
+  usermods.add(new GameFrame());
   #ifdef USERMOD_BATTERY_STATUS_BASIC
   usermods.add(new UsermodBatteryBasic());
   #endif
