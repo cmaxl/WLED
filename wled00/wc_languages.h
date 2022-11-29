@@ -81,7 +81,7 @@
 
     uint8_t getHourIndex(uint8_t my_hour, uint8_t my_minute) {
         my_hour += my_minute/5 > 4 ? 1 : 0;
-        if(my_hour = 1 && ((my_minute/5) != 0)) my_hour = 13; // eins
+        if(my_hour == 1 && ((my_minute/5) != 0)) my_hour = 13; // eins
         return my_hour;
     }
 
