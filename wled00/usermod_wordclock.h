@@ -30,20 +30,28 @@ class WordClock : public Usermod {
     const int8_t maskMinuteDots[4] = {110, 111, 112, 113};
     uint8_t maskLEDsOn[114] = {0};
 
-    boolean
-      purist = true,
-      showDots = true,
-      inverted = false;
+    static const char _name[];
+    static const char _enabled[];
+
+    bool
+      enabled,
+      purist,
+      invertedFace = false,
+      invertedDots = false;
     int8_t
       lastMinute = -1;
 
-    void updateLEDmask(const int8_t wordMask[11]) {
-      for (int8_t i=0; i < 11; i++) {
+    void updateLEDmask(const int8_t wordMask[MAX_MASK]) {
+      for (int8_t i=0; i < MAX_MASK; i++) {
         if(wordMask[i] >= 0) maskLEDsOn[wordMask[i]] = 1;
+        else break;
       }
     }
 
-    void updateDisplay(uint8_t my_hour, uint8_t my_minute){
+    void updateDisplay(){
+      uint8_t my_hour=hourFormat12(localTime);
+      uint8_t my_minute=minute(localTime);
+
       //clear maskLEDsOn
       for (uint8_t i = 0; i < 114; i++) {
         maskLEDsOn[i] = 0;
@@ -62,10 +70,8 @@ class WordClock : public Usermod {
       updateLEDmask(maskHours[hourIndex]);
 
       // MINUTE DOTS
-      if(showDots) {
-        for (uint8_t i=0; i<(my_minute%5); i++) 
-          maskLEDsOn[maskMinuteDots[i]] = 1;
-      }
+      for (uint8_t i=0; i<(my_minute%5); i++) 
+        maskLEDsOn[maskMinuteDots[i]] = 1;
     }
     
 
@@ -78,9 +84,17 @@ class WordClock : public Usermod {
      */
     void setup() {
       //Serial.println("Hello from my usermod!");
+      strip.isMatrix = false;
+      // serializeConfig();
+      deserializeConfigFromFS();
       strip.isMatrix = true;
       strip.matrixWidth = 11;
       strip.matrixHeight = 11;
+
+      strip.panelH = 11;
+      strip.panelW = 11;
+      strip.hPanels = 1;
+      strip.vPanels = 1;
       strip.matrix.bottomStart = false;
       strip.matrix.rightStart = false;
       strip.matrix.vertical = false;
@@ -95,6 +109,7 @@ class WordClock : public Usermod {
       strip.panelH = 11;
 
       applyPreset(1);
+      updateDisplay();
 
       // strip.purgeSegments();
       // strip.setSegment(0, 0, 11, 1, 0, 0, 0, 10);
@@ -107,6 +122,7 @@ class WordClock : public Usermod {
      * Use it to initialize network interfaces
      */
     void connected() {
+      updateDisplay();
       //Serial.println("Connected to WiFi!");
     }
 
@@ -125,7 +141,7 @@ class WordClock : public Usermod {
       if(millis() % 500 == 0) {
         int8_t my_minute = minute(localTime);
         if(lastMinute != my_minute) {
-          updateDisplay(hourFormat12(localTime), my_minute);
+          updateDisplay();
           lastMinute = my_minute;
         }
       }
@@ -137,19 +153,25 @@ class WordClock : public Usermod {
      * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
      * Below it is shown how this could be used for e.g. a light sensor
      */
-    /*
     void addToJsonInfo(JsonObject& root)
     {
-      int reading = 20;
-      //this code adds "u":{"Light":[20," lux"]} to the info object
       JsonObject user = root["u"];
       if (user.isNull()) user = root.createNestedObject("u");
 
-      JsonArray lightArr = user.createNestedArray("Light"); //name
-      lightArr.add(reading); //value
-      lightArr.add(" lux"); //unit
+      JsonArray infoArr = user.createNestedArray(FPSTR(_name));
+
+      String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
+      uiDomString += FPSTR(_name);
+      uiDomString += F(":{");
+      uiDomString += FPSTR(_enabled);
+      uiDomString += enabled ? F(":false}});\">") : F(":true}});\">");
+      uiDomString += F("<i class=\"icons");
+      uiDomString += enabled ? F(" on") : F(" off");
+      uiDomString += F("\">&#xe08f;</i>");
+      uiDomString += F("</button>");
+      infoArr.add(uiDomString);
+
     }
-    */
 
 
     /*
@@ -158,7 +180,11 @@ class WordClock : public Usermod {
      */
     void addToJsonState(JsonObject& root)
     {
-      //root["user0"] = userVar0;
+      JsonObject usermod = root[FPSTR(_name)];
+      if (usermod.isNull()) {
+        usermod = root.createNestedObject(FPSTR(_name));
+      }
+      usermod["on"] = enabled;
     }
 
 
@@ -168,8 +194,12 @@ class WordClock : public Usermod {
      */
     void readFromJsonState(JsonObject& root)
     {
-      userVar0 = root["user0"] | userVar0; //if "user0" key exists in JSON, update, else keep old value
-      //if (root["bri"] == 255) Serial.println(F("Don't burn down your garage!"));
+      JsonObject usermod = root[FPSTR(_name)];
+      if (!usermod.isNull()) {
+        if (usermod[FPSTR(_enabled)].is<bool>()) {
+          enabled = usermod[FPSTR(_enabled)].as<bool>();
+        }
+      }
     }
 
 
@@ -210,7 +240,12 @@ class WordClock : public Usermod {
      */
     void addToConfig(JsonObject& root)
     {
-      
+      JsonObject top = root.createNestedObject(FPSTR(_name));
+
+      top[FPSTR(_enabled)] = enabled;
+      top["puristMode"] = purist;
+      top["invertedFace"] = invertedFace;
+      top["invertedDots"] = invertedDots;
     }
 
 
@@ -233,10 +268,14 @@ class WordClock : public Usermod {
     {
       // default settings values could be set here (or below using the 3-argument getJsonValue()) instead of in the class definition or constructor
       // setting them inside readFromConfig() is slightly more robust, handling the rare but plausible use case of single value being missing after boot (e.g. if the cfg.json was manually edited and a value was removed)
-
-      JsonObject top = root["exampleUsermod"];
+      JsonObject top = root[FPSTR(_name)];
 
       bool configComplete = !top.isNull();
+
+      configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
+      configComplete &= getJsonValue(top["puristMode"], purist);
+      configComplete &= getJsonValue(top["invertedFace"], invertedFace);
+      configComplete &= getJsonValue(top["invertedDots"], invertedDots);
 
       return configComplete;
     }
@@ -250,11 +289,14 @@ class WordClock : public Usermod {
     void handleOverlayDraw()
     {
       //strip.setPixelColor(0, RGBW32(0,0,0,0)) // set the first pixel to black
-      // loop over all leds
-      for (uint8_t i=0; i<114; i++)
-      {
-        // check mask and turn pixel off if mask is 0
-        if (!maskLEDsOn[i]) strip.setPixelColor(i, RGBW32(0,0,0,0));
+      if(enabled){
+        // loop over all face LEDs
+        for (int i=0; i<110; i++)
+          // check mask and turn pixel off if mask is 0
+          if (!maskLEDsOn[i] != invertedFace) strip.setPixelColor(i, RGBW32(0,0,0,0));
+        //loop over all dot LEDs
+        for(int i=110; i<114; i++)
+          if (!maskLEDsOn[i] != invertedDots) strip.setPixelColor(i, RGBW32(0,0,0,0));
       }
     }
 
@@ -271,3 +313,7 @@ class WordClock : public Usermod {
    //More methods can be added in the future, this example will then be extended.
    //Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
 };
+
+// strings to reduce flash memory usage (used more than twice)
+const char WordClock::_name[]       PROGMEM = "Wordclock";
+const char WordClock::_enabled[]    PROGMEM = "enabled";
