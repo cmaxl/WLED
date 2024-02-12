@@ -175,6 +175,7 @@
 #endif
 
 // #include "usermod_gameframe.h"
+#include "usermod_airplane_flasher.h"
 
 void registerUsermods()
 {
@@ -186,6 +187,7 @@ void registerUsermods()
   //usermods.add(new MyExampleUsermod());
   // usermods.add(new GameFrame());
   usermods.add(new WordClock());
+  usermods.add(new AirplaneFlasher());
   #ifdef USERMOD_BATTERY_STATUS_BASIC
   usermods.add(new UsermodBatteryBasic());
   #endif

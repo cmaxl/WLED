@@ -150,6 +150,7 @@
 #define FX_MODE_STROBE                  23
 #define FX_MODE_STROBE_RAINBOW          24
 #define FX_MODE_MULTI_STROBE            25
+#define FX_MODE_AIRPLANE_STROBE         187
 #define FX_MODE_BLINK_RAINBOW           26
 #define FX_MODE_ANDROID                 27
 #define FX_MODE_CHASE_COLOR             28
@@ -312,7 +313,7 @@
 #define FX_MODE_ROCKTAVES              185
 #define FX_MODE_2DAKEMI                186
 
-#define MODE_COUNT                     187
+#define MODE_COUNT                     188
 
 typedef enum mapping1D2D {
   M12_Pixels = 0,

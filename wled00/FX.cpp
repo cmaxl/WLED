@@ -751,6 +751,144 @@ static const char _data_FX_MODE_MULTI_STROBE[] PROGMEM = "Strobe Mega@!,!;!,!;!"
 
 
 /*
+* Strobe effect which simulates airplane lights.
+*/
+#define AIRPLANE_DIM_VALUE 120
+#define BEACON_COLOR_OFF 0
+#define BEACON_COLOR_ON RED
+#define WING_LEFT_COLOR_OFF RGBW32(AIRPLANE_DIM_VALUE, 0, 0, 0)
+#define WING_LEFT_COLOR_ON ( uint32_t(0xFF << 24 | WING_LEFT_COLOR_OFF) )
+#define WING_RIGHT_COLOR_OFF RGBW32(0, AIRPLANE_DIM_VALUE, 0, 0)
+#define WING_RIGHT_COLOR_ON ( uint32_t(0xFF << 24 | WING_RIGHT_COLOR_OFF) ) 
+#define TAIL_COLOR_OFF RGBW32(AIRPLANE_DIM_VALUE*0.4, AIRPLANE_DIM_VALUE*0.4, AIRPLANE_DIM_VALUE*0.4, 0)
+#define TAIL_COLOR_ON ( uint32_t(0xFF << 24 | TAIL_COLOR_OFF) )
+
+// const uint16_t beacon[4] = {0, 500, 100, 400};
+// const uint16_t wing[4] = {50, 50, 50, 850};
+// const uint16_t tail[2] = {100, 900};
+// const uint16_t timeframe = 1000;
+
+uint32_t lastBeacon = 0;
+uint32_t lastWing = 0;
+uint32_t lastTail = 0;
+uint32_t lastTimeframe = 0;
+
+uint8_t beaconIndex = 0;
+uint8_t wingIndex = 0;
+uint8_t tailIndex = 0;
+
+// initial states
+bool beaconOn = true;
+bool wingOn = true;
+bool tailOn = true;
+
+uint16_t mode_airplane_strobe(void) {
+  uint32_t it = strip.now;
+
+  um_data_t *um_data;
+  if (!usermods.getUMData(&um_data, USERMOD_ID_AIPLANE_FLASHER)) {
+    static um_data_t* um_data = nullptr;
+
+    static uint8_t 
+      airplaneChanged = true,
+      beacon_size = 2,
+      wing_size = 0,
+      tail_size = 0;
+
+    static uint16_t 
+      beacon[10] = {300, 700, 0, 0, 0, 0, 0, 0, 0, 0},
+      wing[10] = {0},
+      tail[10] = {0},
+      timeframe = 0;
+
+    // initialize um_data pointer structure
+    um_data = new um_data_t;
+    um_data->u_size = 8;
+    um_data->u_type = new um_types_t[um_data->u_size];
+    um_data->u_data = new void*[um_data->u_size];
+    um_data->u_data[0] = &airplaneChanged;
+    um_data->u_data[1] = beacon;
+    um_data->u_data[2] = wing;
+    um_data->u_data[3] = tail;
+    um_data->u_data[4] = &beacon_size;
+    um_data->u_data[5] = &wing_size;
+    um_data->u_data[6] = &tail_size;
+    um_data->u_data[7] = &timeframe;
+  }
+
+
+  uint16_t* timefrm = (uint16_t*)um_data->u_data[7];
+  uint8_t* tmp = (uint8_t*)um_data->u_data[0];
+
+  // is neeeded to avoid lights running out of sync
+  // or if(airplaneChanged)
+  if(( lastTimeframe + *(timefrm) <= it || *tmp)) {
+    lastTimeframe = it;
+    lastBeacon = lastWing = lastTail = it;
+    beaconIndex = wingIndex = tailIndex = 0;
+    beaconOn = wingOn = tailOn = true;
+    // airplaneChanged = false;
+    *tmp = false;
+  }
+
+  uint16_t* tmp_time = (uint16_t*)um_data->u_data[1];
+  uint8_t* size = (uint8_t*)um_data->u_data[4];
+  if(lastBeacon + *(tmp_time + beaconIndex) <= it) {
+    lastBeacon = it;
+    beaconIndex = (beaconIndex + 1) % *size;
+    beaconOn = !beaconOn;
+  }
+  
+  tmp_time = (uint16_t*)um_data->u_data[2];
+  size = (uint8_t*)um_data->u_data[5];
+  if(lastWing + *(tmp_time + wingIndex) <= it) {
+    lastWing = it;
+    wingIndex = (wingIndex + 1) % *size;
+    wingOn = !wingOn;
+  }
+  
+  tmp_time = (uint16_t*)um_data->u_data[3];
+  size = (uint8_t*)um_data->u_data[6];
+  if(lastTail + *(tmp_time + tailIndex) <= it) {
+    lastTail = it;
+    tailIndex = (tailIndex + 1) % *size;
+    tailOn = !tailOn;
+ }
+
+  // each segement will be divided by 4
+  // beacon is on 1
+  uint32_t color = beaconOn ? BEACON_COLOR_ON : BEACON_COLOR_OFF;
+  for(int i=1*(SEGLEN/4); i<2*(SEGLEN/4); i++) {
+      SEGMENT.setPixelColor(i, color);
+  }
+
+  //wing is on 0(left) and 2(right)
+  
+  color = wingOn ? WING_LEFT_COLOR_ON : WING_LEFT_COLOR_OFF;
+  if(!strip.hasRGBWBus())
+    color &= 0xFFFFFF;
+  for(int i=0; i<(SEGLEN/4); i++)
+      SEGMENT.setPixelColor(i, color);
+
+  color = wingOn ? WING_RIGHT_COLOR_ON : WING_RIGHT_COLOR_OFF;
+  if(!strip.hasRGBWBus())
+    color &= 0xFFFFFF;
+  for(int i=2*(SEGLEN/4); i<3*(SEGLEN/4); i++)
+      SEGMENT.setPixelColor(i, color);
+
+  // tail is remaining leds at end
+    color = tailOn ? TAIL_COLOR_ON : TAIL_COLOR_OFF;
+  if(!strip.hasRGBWBus())
+    color &= 0xFFFFFF;
+  for(int i=3*(SEGLEN/4); i<SEGLEN; i++) {
+      SEGMENT.setPixelColor(i, color);
+  }
+
+  return FRAMETIME;
+}
+static const char _data_FX_MODE_AIRPLANE_STROBE[] PROGMEM = "Airplane Strobe@;;;si=0";
+
+/*
  * Android loading circle
  */
 uint16_t mode_android(void) {
@@ -7361,6 +7499,7 @@ void WS2812FX::setupEffectData() {
   addEffect(FX_MODE_STROBE, &mode_strobe, _data_FX_MODE_STROBE);
   addEffect(FX_MODE_STROBE_RAINBOW, &mode_strobe_rainbow, _data_FX_MODE_STROBE_RAINBOW);
   addEffect(FX_MODE_MULTI_STROBE, &mode_multi_strobe, _data_FX_MODE_MULTI_STROBE);
+  addEffect(FX_MODE_AIRPLANE_STROBE, &mode_airplane_strobe, _data_FX_MODE_AIRPLANE_STROBE);
   addEffect(FX_MODE_BLINK_RAINBOW, &mode_blink_rainbow, _data_FX_MODE_BLINK_RAINBOW);
   addEffect(FX_MODE_ANDROID, &mode_android, _data_FX_MODE_ANDROID);
   addEffect(FX_MODE_CHASE_COLOR, &mode_chase_color, _data_FX_MODE_CHASE_COLOR);
