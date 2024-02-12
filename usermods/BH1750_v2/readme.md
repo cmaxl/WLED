@@ -1,7 +1,7 @@
 # BH1750 usermod
 
-This usermod will read from an ambient light sensor like the BH1750 sensor.
-The luminance is displayed both in the Info section of the web UI as well as published to the `/luminance` MQTT topic if enabled.
+This usermod will read from an ambient light sensor like the BH1750.
+The luminance is displayed in both the Info section of the web UI, as well as published to the `/luminance` MQTT topic if enabled.
 
 ## Dependencies
 - Libraries
@@ -9,7 +9,7 @@ The luminance is displayed both in the Info section of the web UI as well as pub
   - This must be added under `lib_deps` in your `platformio.ini` (or `platformio_override.ini`).
 - Data is published over MQTT - make sure you've enabled the MQTT sync interface.
 
-## Compiliation
+## Compilation
 
 To enable, compile with `USERMOD_BH1750` defined  (e.g. in `platformio_override.ini`)
 ```ini
@@ -28,9 +28,9 @@ The following settings can be set at compile-time but are configurable on the us
 *   `USERMOD_BH1750_MAX_MEASUREMENT_INTERVAL` - the max number of milliseconds between measurements, defaults to 10000ms
 *   `USERMOD_BH1750_MIN_MEASUREMENT_INTERVAL` - the min number of milliseconds between measurements, defaults to 500ms
 *   `USERMOD_BH1750_OFFSET_VALUE` - the offset value to report on, defaults to 1
-*   `USERMOD_BH1750_FIRST_MEASUREMENT_AT` - the number of milliseconds after boot to take first measurement, defaults to 10 seconds
+*   `USERMOD_BH1750_FIRST_MEASUREMENT_AT` - the number of milliseconds after boot to take first measurement, defaults to 10000 ms
 
-In addition, on the Usermod screen allows you to:
+In addition, the Usermod screen allows you to:
 - enable/disable the usermod
 - Enable Home Assistant Discovery of usermod
 - Configure the SCL/SDA pins
@@ -44,6 +44,6 @@ Jul 2022
 - Added Home Assistant Discovery
 - Implemented PinManager to register pins
 - Made pins configurable in usermod menu
-- Added API call to read illuminance from other modules
+- Added API call to read luminance from other modules
 - Enhanced info-screen outputs
 - Updated `readme.md`
