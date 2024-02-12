@@ -11,7 +11,6 @@
  */
 //#include "../usermods/EXAMPLE_v2/usermod_v2_example.h"
 
-#include "usermod_v2_wordclock.h"
 
 #ifdef USERMOD_BATTERY_STATUS_BASIC
   #include "../usermods/battery_status_basic/usermod_v2_battery_status_basic.h"
@@ -175,6 +174,7 @@
 #endif
 
 // #include "usermod_gameframe.h"
+#include "usermod_wordclock.h"
 
 void registerUsermods()
 {
