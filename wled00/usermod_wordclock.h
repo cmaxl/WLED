@@ -84,7 +84,7 @@ class WordClock : public Usermod {
      */
     void setup() {
       //Serial.println("Hello from my usermod!");
-      strip.isMatrix = false;
+      /*strip.isMatrix = false;
       // serializeConfig();
       deserializeConfigFromFS();
       strip.isMatrix = true;
@@ -106,9 +106,9 @@ class WordClock : public Usermod {
       strip.panel[0].serpentine = true;
 
       strip.panelW = 11;
-      strip.panelH = 11;
+      strip.panelH = 11;*/
 
-      applyPreset(1);
+      // applyPreset(1);
       updateDisplay();
 
       // strip.purgeSegments();
