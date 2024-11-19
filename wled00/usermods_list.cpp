@@ -172,7 +172,13 @@
   #include "../usermods/sd_card/usermod_sd_card.h"
 #endif
 
-#include "usermod_gameframe.h"
+#ifdef USERMOD_GAMEFRAME
+#if defined(WLED_USE_SD_MMC) || defined(WLED_USE_SD_SPI)
+  #include "usermod_gameframe.h"
+#else
+  #error "Wordclock usermod requires SD card support"
+#endif
+#endif
 
 void registerUsermods()
 {
@@ -182,7 +188,6 @@ void registerUsermods()
    * \/ \/ \/
    */
   //usermods.add(new MyExampleUsermod());
-  usermods.add(new GameFrame());
   #ifdef USERMOD_BATTERY_STATUS_BASIC
   usermods.add(new UsermodBatteryBasic());
   #endif
@@ -325,5 +330,9 @@ void registerUsermods()
 
   #ifdef SD_ADAPTER
   usermods.add(new UsermodSdCard());
+  #endif
+
+  #ifdef USERMOD_GAMEFRAME
+  usermods.add(new GameFrame());
   #endif
 }

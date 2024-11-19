@@ -2,20 +2,12 @@
 
 #include "wled.h"
 
-#include "SPI.h"
-#include "SdFat.h"
-using namespace sdfat;
-
 #include "IniFileLite.h"
 
 //TODO add description
 //TODO improve commenring
 
 #define GF_DEBUG_FILES 0
-
-#define SD_CS    D8  // Chip select line for SD card
-SdFat sd; // set filesystem
-SdFile myFile; // set filesystem
 
 #define BUFFPIXEL 16 // number of pixels to buffer when reading BMP files
 
@@ -26,7 +18,6 @@ class GameFrame : public Usermod {
     bool
       usermodActive = false,
       prevState = false,
-      sdReady = false,
       updateConfig = false,
       showOnce = false,
       logoPlayed = false, // plays logo animation correctly reardless of playMode
@@ -81,17 +72,11 @@ class GameFrame : public Usermod {
       CRGB
         matrix[256] = {0};
 
-  void initSD() { // TODO better sd card handling
-    // see if the card is present and can be initialized:
-    sdReady = sd.begin(SD_CS, SPI_FULL_SPEED);
-    if(sdReady) {
-      DEBUG_PRINTLN("Init SD: success");
-      initGameFrame();
-      nextImage();
-      drawFrame();
-      // sd.chdir("/girl");
-    }
-  }
+    #ifdef SD_ADAPTER
+      UsermodSdCard *sdCard;
+    #else
+      void* sdCard = nullptr;
+    #endif
   
   uint8_t dim8_jer( uint8_t x )
   {
@@ -178,7 +163,7 @@ class GameFrame : public Usermod {
     updateState();
 
     closeMyFile();
-    sd.chdir("/");
+    SD_ADAPTER.chdir("/");
 
     char folder[13];
 
@@ -188,7 +173,7 @@ class GameFrame : public Usermod {
       // file indexes appear to loop after 2048
       for (int fileIndex = 0; fileIndex < 2048; fileIndex++)
       {
-        myFile.open(sd.vwd(), fileIndex, O_READ);
+        myFile.open(SD_ADAPTER.vwd(), fileIndex, O_READ);
         if (myFile.isDir()) {
           DEBUG_PRINTLN("---");
           numFolders++;
@@ -253,7 +238,7 @@ class GameFrame : public Usermod {
     baseTime = millis();
     holdTime = 0;
     char folder[9];
-    sd.chdir("/");
+    SD_ADAPTER.chdir("/");
     fileIndex = 0;
     offsetX = 0;
     offsetY = 0;
@@ -272,11 +257,11 @@ class GameFrame : public Usermod {
       strcat(chainDir, "/");
       itoa(chainIndex, chainChar, 10);
       strcat(chainDir, chainChar);
-      if (sd.exists(chainDir))
+      if (file_onSD(chainDir))
       {
         Serial.print(F("Chaining: "));
         Serial.println(chainDir);
-        sd.chdir(chainDir);
+        SD_ADAPTER.chdir(chainDir);
         chainIndex++;
       }
       else
@@ -284,7 +269,7 @@ class GameFrame : public Usermod {
         // chaining concluded
         chainIndex = -1;
         chainRootFolder[0] = '\0';
-        sd.chdir("/");
+        SD_ADAPTER.chdir("/");
       }
     }
 
@@ -293,9 +278,9 @@ class GameFrame : public Usermod {
     {
       Serial.print(F("Forcing next: "));
       Serial.println(nextFolder);
-      if (sd.exists(nextFolder))
+      if (file_onSD(nextFolder))
       {
-        sd.chdir(nextFolder);
+        SD_ADAPTER.chdir(nextFolder);
         strcpy_P(curFolder, nextFolder);
       }
       else
@@ -330,7 +315,7 @@ class GameFrame : public Usermod {
           foundNewFolder = false;
           while (foundNewFolder == false)
           {
-            myFile.open(sd.vwd(), folderIndex, O_READ);
+            myFile.open(SD_ADAPTER.vwd(), folderIndex, O_READ);
             if (myFile.isDir()) {
               foundNewFolder = true;
               i++;
@@ -345,7 +330,7 @@ class GameFrame : public Usermod {
 
       while (foundNewFolder == false)
       {
-        myFile.open(sd.vwd(), folderIndex, O_READ);
+        myFile.open(SD_ADAPTER.vwd(), folderIndex, O_READ);
         myFile.getName(folder, 13);
 
         // ignore system folders that start with "00"
@@ -356,7 +341,7 @@ class GameFrame : public Usermod {
           Serial.print(F("Opening Folder: "));
           Serial.println(folder);
 
-          sd.chdir(folder);
+          SD_ADAPTER.chdir(folder);
           closeMyFile();
           strcpy_P(curFolder, folder);
         }
@@ -368,18 +353,18 @@ class GameFrame : public Usermod {
     // is this the start of a folder chain?
     char chainDir[2];
     strcpy_P(chainDir, PSTR("0"));
-    if (sd.exists(chainDir))
+    if (file_onSD(chainDir))
     {
       Serial.print(F("Chaining detected: "));
       Serial.println(folder);
       memcpy(chainRootFolder, folder, 8);
-      sd.chdir(chainDir);
+      SD_ADAPTER.chdir(chainDir);
       chainIndex = 1;
     }
 
     char firstImage[6];
     strcpy_P(firstImage, PSTR("0.bmp"));
-    if (sd.exists(firstImage))
+    if (file_onSD(firstImage))
     {
       Serial.print(F("Opening File: "));
       Serial.print(folder);
@@ -431,7 +416,7 @@ class GameFrame : public Usermod {
       char tmp_1[6];
       strcpy_P(tmp_0, PSTR("0.bmp"));
       strcpy_P(tmp_1, PSTR("1.bmp"));
-      if (sd.exists(tmp_0) && (!sd.exists(tmp_1)))
+      if (file_onSD(tmp_0) && (!file_onSD(tmp_1)))
       {
         singleGraphic = true;
         // check for pan settings
@@ -519,7 +504,7 @@ class GameFrame : public Usermod {
       char bmpFile[13]; // 8-digit number + .bmp + null byte
       itoa(fileIndex, bmpFile, 10);
       strcat(bmpFile, ".bmp");
-      if (!sd.exists(bmpFile))
+      if (!file_onSD(bmpFile))
       {
         fileIndex = 0;
         itoa(fileIndex, bmpFile, 10);
@@ -629,7 +614,7 @@ class GameFrame : public Usermod {
         Serial.println('\'');
 
         // Serial.println("Directory:");
-        // sd.ls(LS_R | LS_DATE | LS_SIZE);
+        // SD_ADAPTER.ls(LS_R | LS_DATE | LS_SIZE);
         // Serial.println();
       }
 
@@ -957,6 +942,9 @@ class GameFrame : public Usermod {
   public:
     void setup() {
       // initSD();
+      #ifdef SD_ADAPTER
+        sdCard = (UsermodSdCard*) usermods.lookup(USERMOD_ID_SD_CARD)
+      #endif
       prevState = usermodActive;
     }
 
@@ -984,76 +972,81 @@ class GameFrame : public Usermod {
   void loop() {
 
     // TODO add strip.isMatrix() check including 16x16 dimension check
+      if(!usermodActive) return; 
+      if(sdCard == nullptr) return;
+      if(!sdCard->configSdEnabled) return;
 
       // periodically check if SD card is inserted
-      if(!sdReady && millis() % 5000 == 0) {
-        initSD();
+      if(!file_onSD("/") && millis() % 5000 == 0) {
+        sdCard.setup();
+        if(file_onSD("/")) {
+          initGameFrame();
+          nextImage();
+          drawFrame();
+        }
       }
 
-      // deactivate via menuActive = false
-      if(sdReady && usermodActive) {
-        currentSecond = second(localTime);
-        // currently playing images?
-        if (menuActive == false && breakout == false)
+      currentSecond = second(localTime);
+      // currently playing images?
+      if (menuActive == false && breakout == false)
+      {
+        if (clockShown == false || clockAnimationActive == true)
         {
-          if (clockShown == false || clockAnimationActive == true)
+          // advance counter
+          if (currentSecond != lastSecond)
           {
-            // advance counter
-            if (currentSecond != lastSecond)
+            lastSecond = currentSecond;
+            secondCounter++;
+            // revert to clock display if animation played for 5 seconds
+            if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
             {
-              lastSecond = currentSecond;
-              secondCounter++;
-              // revert to clock display if animation played for 5 seconds
-              if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
+              // initClock();
+            }
+          }
+
+          // did image load fail?
+          if (abortImage == true && clockShown == false && logoPlayed == true)
+          {
+            abortImage = false;
+            nextImage();
+            drawFrame();
+          }
+
+          // progress to next folder if cycleTime is up
+          // check for infinite mode
+          else if (cycleTimeSetting != 8  && clockShown == false && clockAnimationActive == false)
+          {
+            if (secondCounter >= cycleTime)
+            {
+              if (finishBeforeProgressing == true)
               {
-                // initClock();
+                if (timerLapsed == false) timerLapsed = true;
               }
-            }
-
-            // did image load fail?
-            if (abortImage == true && clockShown == false && logoPlayed == true)
-            {
-              abortImage = false;
-              nextImage();
-              drawFrame();
-            }
-
-            // progress to next folder if cycleTime is up
-            // check for infinite mode
-            else if (cycleTimeSetting != 8  && clockShown == false && clockAnimationActive == false)
-            {
-              if (secondCounter >= cycleTime)
+              else
               {
-                if (finishBeforeProgressing == true)
-                {
-                  if (timerLapsed == false) timerLapsed = true;
-                }
-                else
-                {
-                  nextImage();
-                  drawFrame();
-                }
-              }
-            }
-
-            // animate if not a single-frame & animations are on
-            if (holdTime != -1 && playMode != 2 || logoPlayed == false)
-            {
-              if (millis() >= swapTime && clockShown == false)
-              {
-                // statusLedFlicker();
-                swapTime = millis() + holdTime;
-                fileIndex++;
+                nextImage();
                 drawFrame();
               }
             }
           }
 
-          // show clock
-          else if (clockShown == true && clockAnimationActive == false)
+          // animate if not a single-frame & animations are on
+          if (holdTime != -1 && playMode != 2 || logoPlayed == false)
           {
-            // showClock();
+            if (millis() >= swapTime && clockShown == false)
+            {
+              // statusLedFlicker();
+              swapTime = millis() + holdTime;
+              fileIndex++;
+              drawFrame();
+            }
           }
+        }
+
+        // show clock
+        else if (clockShown == true && clockAnimationActive == false)
+        {
+          // showClock();
         }
       }
 

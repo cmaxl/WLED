@@ -1,11 +1,13 @@
 #ifndef _INIFILE_H
 #define _INIFILE_H
 
+#include "wled.h"
+
 // Maximum length for filename, excluding NULL char 26 chars allows an
 // 8.3 filename instead and 8.3 directory with a leading slash
 #define INI_FILE_MAX_FILENAME_LEN 26
 
-#include "SdFat.h"
+// #include "SdFat.h"
 using namespace sdfat;
 //#include "Ethernet.h"
 
