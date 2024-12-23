@@ -41,6 +41,9 @@ class WordClock : public Usermod {
     int8_t
       lastMinute = -1;
 
+    // writes the maskLEDsOn array with the LEDs that are relevant based on the
+    // wordMask array. The wordMask array contains the indices of the LEDs.
+    // Essentially writes one row of the matrix to the maskLEDsOn array.
     void updateLEDmask(const int8_t wordMask[MAX_MASK]) {
       for (int8_t i=0; i < MAX_MASK; i++) {
         if(wordMask[i] >= 0) maskLEDsOn[wordMask[i]] = 1;
@@ -60,7 +63,9 @@ class WordClock : public Usermod {
       uint8_t hourIndex = getHourIndex(my_hour, my_minute);
       uint8_t minuteIndex = my_minute/5;
 
-      // PREFIX
+      // PREFIX 
+      //  purist mode: every full half hour (HH:3m or HH:0m)
+      //  otherwise: always on
       if(!purist || !(minuteIndex%6)) updateLEDmask(maskPrefix);
 
       // MINUTES
@@ -83,37 +88,7 @@ class WordClock : public Usermod {
      * You can use it to initialize variables, sensors or similar.
      */
     void setup() {
-      //Serial.println("Hello from my usermod!");
-      /*strip.isMatrix = false;
-      // serializeConfig();
-      deserializeConfigFromFS();
-      strip.isMatrix = true;
-      strip.matrixWidth = 11;
-      strip.matrixHeight = 11;
-
-      strip.panelH = 11;
-      strip.panelW = 11;
-      strip.hPanels = 1;
-      strip.vPanels = 1;
-      strip.matrix.bottomStart = false;
-      strip.matrix.rightStart = false;
-      strip.matrix.vertical = false;
-      strip.matrix.serpentine = false;
-
-      strip.panel[0].bottomStart = false;
-      strip.panel[0].rightStart = false;
-      strip.panel[0].vertical = true;
-      strip.panel[0].serpentine = true;
-
-      strip.panelW = 11;
-      strip.panelH = 11;*/
-
-      // applyPreset(1);
       updateDisplay();
-
-      // strip.purgeSegments();
-      // strip.setSegment(0, 0, 11, 1, 0, 0, 0, 10);
-      // strip.setSegment(1, 0, 4, 1, 0, 0, 10, 11);
     }
 
 
@@ -122,8 +97,6 @@ class WordClock : public Usermod {
      * Use it to initialize network interfaces
      */
     void connected() {
-      updateDisplay();
-      //Serial.println("Connected to WiFi!");
     }
 
 
@@ -138,7 +111,7 @@ class WordClock : public Usermod {
      *    Instead, use a timer check as shown here.
      */
     void loop() {
-      if(millis() % 500 == 0) {
+      if(millis() % 200 == 0) {
         int8_t my_minute = minute(localTime);
         if(lastMinute != my_minute) {
           updateDisplay();
@@ -160,6 +133,7 @@ class WordClock : public Usermod {
 
       JsonArray infoArr = user.createNestedArray(FPSTR(_name));
 
+      // On-Off
       String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
       uiDomString += FPSTR(_name);
       uiDomString += F(":{");
@@ -212,7 +186,7 @@ class WordClock : public Usermod {
      * It might cause the LEDs to stutter and will cause flash wear if called too often.
      * Use it sparingly and always in the loop, never in network callbacks!
      * 
-     * addToConfig() will make your settings editable through the Usermod Settings page automatically.
+     * addToConfig() will make your settings editable ^through the Usermod Settings page automatically.
      *
      * Usermod Settings Overview:
      * - Numeric values are treated as floats in the browser.
@@ -288,7 +262,6 @@ class WordClock : public Usermod {
      */
     void handleOverlayDraw()
     {
-      //strip.setPixelColor(0, RGBW32(0,0,0,0)) // set the first pixel to black
       if(enabled){
         // loop over all face LEDs
         for (int i=0; i<110; i++)
