@@ -31,7 +31,9 @@ class WordClock : public Usermod {
     uint8_t maskLEDsOn[114] = {0};
 
     static const char _name[];
+    static const char _shorthand[];
     static const char _enabled[];
+    static const char _on[];
 
     bool
       enabled,
@@ -133,13 +135,13 @@ class WordClock : public Usermod {
       JsonObject user = root["u"];
       if (user.isNull()) user = root.createNestedObject("u");
 
-      JsonArray infoArr = user.createNestedArray(FPSTR(_name));
+      JsonArray infoArr = user.createNestedArray(FPSTR(_shorthand));
 
       // On-Off
       String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
-      uiDomString += FPSTR(_name);
+      uiDomString += FPSTR(_shorthand);
       uiDomString += F(":{");
-      uiDomString += FPSTR(_enabled);
+      uiDomString += FPSTR(_on);
       uiDomString += enabled ? F(":false}});\">") : F(":true}});\">");
       uiDomString += F("<i class=\"icons");
       uiDomString += enabled ? F(" on") : F(" off");
@@ -156,11 +158,11 @@ class WordClock : public Usermod {
      */
     void addToJsonState(JsonObject& root)
     {
-      JsonObject usermod = root[FPSTR(_name)];
+      JsonObject usermod = root[FPSTR(_shorthand)];
       if (usermod.isNull()) {
-        usermod = root.createNestedObject(FPSTR(_name));
+        usermod = root.createNestedObject(FPSTR(_shorthand));
       }
-      usermod["on"] = enabled;
+      usermod[FPSTR(_on)] = enabled;
     }
 
 
@@ -170,10 +172,10 @@ class WordClock : public Usermod {
      */
     void readFromJsonState(JsonObject& root)
     {
-      JsonObject usermod = root[FPSTR(_name)];
+      JsonObject usermod = root[FPSTR(_shorthand)];
       if (!usermod.isNull()) {
-        if (usermod[FPSTR(_enabled)].is<bool>()) {
-          enabled = usermod[FPSTR(_enabled)].as<bool>();
+        if (usermod[FPSTR(_on)].is<bool>()) {
+          enabled = usermod[FPSTR(_on)].as<bool>();
         }
       }
     }
@@ -291,4 +293,6 @@ class WordClock : public Usermod {
 
 // strings to reduce flash memory usage (used more than twice)
 const char WordClock::_name[]       PROGMEM = "Wordclock";
+const char WordClock::_shorthand[]  PROGMEM = "wq";
 const char WordClock::_enabled[]    PROGMEM = "enabled";
+const char WordClock::_on[]         PROGMEM = "on";
