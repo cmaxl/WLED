@@ -288,6 +288,7 @@ class Usermod {
     virtual void connected() {}                                              // called when WiFi is (re)connected
     virtual void appendConfigData() {}                                       // helper function called from usermod settings page to add metadata for entry fields
     virtual void addToJsonState(JsonObject& obj) {}                          // add JSON objects for WLED state
+    virtual void addToJsonPreset(JsonObject& obj) {}                             // add JSON objects for WLED presets
     virtual void addToJsonInfo(JsonObject& obj) {}                           // add JSON objects for UI Info page
     virtual void readFromJsonState(JsonObject& obj) {}                       // process JSON messages received from web server
     virtual void addToConfig(JsonObject& obj) {}                             // add JSON entries that go to cfg.json
@@ -313,6 +314,7 @@ class UsermodManager {
     void connected();
     void appendConfigData();
     void addToJsonState(JsonObject& obj);
+    void addToJsonPreset(JsonObject& obj);
     void addToJsonInfo(JsonObject& obj);
     void readFromJsonState(JsonObject& obj);
     void addToConfig(JsonObject& obj);
