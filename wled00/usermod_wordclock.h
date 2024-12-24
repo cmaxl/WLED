@@ -38,8 +38,6 @@ class WordClock : public Usermod {
       purist,
       invertedFace = false,
       invertedDots = false;
-    int8_t
-      lastMinute = -1;
 
     // writes the maskLEDsOn array with the LEDs that are relevant based on the
     // wordMask array. The wordMask array contains the indices of the LEDs.
@@ -113,9 +111,13 @@ class WordClock : public Usermod {
     void loop() {
       if(millis() % 200 == 0) {
         int8_t my_minute = minute(localTime);
-        if(lastMinute != my_minute) {
+        int8_t my_hour = hourFormat12(localTime);
+        static int8_t lastMinute = -1;
+        static int8_t lastHour = -1;
+        if(lastMinute != my_minute || lastHour != my_hour) {
           updateDisplay();
           lastMinute = my_minute;
+          lastHour = my_hour;
         }
       }
     }
