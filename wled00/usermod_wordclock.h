@@ -158,6 +158,19 @@ class WordClock : public Usermod {
      */
     void addToJsonState(JsonObject& root)
     {
+
+    }
+
+    /*
+     * addToJsonPreset() can be used to add custom entries to the /json/state part of the JSON API (state object).
+     * In contrast to addToJsonState the entries are added to the preset and will be considered in readFromJsonState
+     * Useful if you need your usermod to be enabled and disabled by presets
+     * Important to note is that the structure used must be consitent with the structure in readFromJsonState to take any affect
+     * It is advised to use a shorthand for the key to reduce the footprint of the preset
+     * Values in the state object may be modified by connected clients
+     */
+    void addToJsonPreset(JsonObject& root)
+    {
       JsonObject usermod = root[FPSTR(_shorthand)];
       if (usermod.isNull()) {
         usermod = root.createNestedObject(FPSTR(_shorthand));
