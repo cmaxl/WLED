@@ -28,25 +28,42 @@ class WordClock : public Usermod {
   private:
     //Private class members. You can declare variables and functions only accessible to your usermod here
     const int8_t maskMinuteDots[4] = {110, 111, 112, 113};
-    uint8_t maskLEDsOn[114] = {0};
+    uint8_t 
+      languageIndex = 2,
+      maskLEDsOn[114] = {0};
+    int8_t maskBuffer[WQ_MASK_SIZE] = {0};
+
+    const uint8_t numberOfLanguages = 3;
+    static constexpr WordclockLanguage *wc_language_list[] = {
+      &language_en,
+      &language_de,
+      &language_de_alt,
+      // &language_d3,
+      &language_d4,
+      &language_d4_alt
+    };
+    WordclockLanguage *language = wc_language_list[languageIndex];
+    String languageId = language->id;
+
+    bool
+      enabled = true,
+      initDone = false,
+      purist = true,
+      invertedFace = false,
+      invertedDots = false;
 
     static const char _name[];
     static const char _shorthand[];
     static const char _enabled[];
     static const char _on[];
-
-    bool
-      enabled,
-      purist,
-      invertedFace = false,
-      invertedDots = false;
+    static const char _language[];
 
     // writes the maskLEDsOn array with the LEDs that are relevant based on the
     // wordMask array. The wordMask array contains the indices of the LEDs.
     // Essentially writes one row of the matrix to the maskLEDsOn array.
-    void updateLEDmask(const int8_t wordMask[MAX_MASK]) {
-      for (int8_t i=0; i < MAX_MASK; i++) {
-        if(wordMask[i] >= 0) maskLEDsOn[wordMask[i]] = 1;
+    void updateLEDmask() {
+      for (int8_t i=0; i < WQ_MASK_SIZE; i++) {
+        if(maskBuffer[i] >= 0) maskLEDsOn[maskBuffer[i]] = 1;
         else break;
       }
     }
@@ -56,27 +73,46 @@ class WordClock : public Usermod {
       uint8_t my_minute=minute(localTime);
 
       //clear maskLEDsOn
-      for (uint8_t i = 0; i < 114; i++) {
-        maskLEDsOn[i] = 0;
-      }
+      memset(maskLEDsOn, 0, sizeof(maskLEDsOn));
 
-      uint8_t hourIndex = getHourIndex(my_hour, my_minute);
+      language = wc_language_list[languageIndex];
+
+      uint8_t hourIndex = language->getHourIndex(my_hour, my_minute);
       uint8_t minuteIndex = my_minute/5;
 
       // PREFIX 
       //  purist mode: every full half hour (HH:3m or HH:0m)
       //  otherwise: always on
-      if(!purist || !(minuteIndex%6)) updateLEDmask(maskPrefix);
+      if(!purist || !(minuteIndex%6)) {
+        memcpy_P(maskBuffer, language->maskPrefix, WQ_MASK_SIZE);
+        updateLEDmask();
+      }
 
       // MINUTES
-      updateLEDmask(maskMinutes[minuteIndex]);
+      memcpy_P(maskBuffer, &(language->maskMinutes[minuteIndex]), WQ_MASK_SIZE);
+      updateLEDmask();
 
       // HOURS
-      updateLEDmask(maskHours[hourIndex]);
+      memcpy_P(maskBuffer, &(language->maskHours[hourIndex]), WQ_MASK_SIZE);
+      updateLEDmask();
 
       // MINUTE DOTS
       for (uint8_t i=0; i<(my_minute%5); i++) 
         maskLEDsOn[maskMinuteDots[i]] = 1;
+
+      strip.trigger();
+    }
+
+    void changeLanguage(String newLang) {
+      for (uint8_t i = 0; i < numberOfLanguages; i++) {
+        if (newLang == wc_language_list[i]->id) {
+          languageIndex = i;
+          language = wc_language_list[languageIndex];
+          languageId = language->id;
+          updateDisplay();
+          return;
+        }
+      }
     }
     
 
@@ -89,6 +125,7 @@ class WordClock : public Usermod {
      */
     void setup() {
       updateDisplay();
+      initDone = true;
     }
 
 
@@ -111,7 +148,13 @@ class WordClock : public Usermod {
      *    Instead, use a timer check as shown here.
      */
     void loop() {
-      if(millis() % 200 == 0) {
+      // if usermod is disabled or called during strip updating just exit
+      // NOTE: on very long strips strip.isUpdating() may always return true so update accordingly
+      if (!enabled || strip.isUpdating()) return;
+
+      static uint32_t lastDisplayUpdate = 0;
+      if(millis() - lastDisplayUpdate > 200) {
+        lastDisplayUpdate = millis();
         int8_t my_minute = minute(localTime);
         int8_t my_hour = hourFormat12(localTime);
         static int8_t lastMinute = -1;
@@ -135,7 +178,7 @@ class WordClock : public Usermod {
       JsonObject user = root["u"];
       if (user.isNull()) user = root.createNestedObject("u");
 
-      JsonArray infoArr = user.createNestedArray(FPSTR(_shorthand));
+      JsonArray infoArr = user.createNestedArray(FPSTR(_name));
 
       // On-Off
       String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
@@ -149,6 +192,24 @@ class WordClock : public Usermod {
       uiDomString += F("</button>");
       infoArr.add(uiDomString);
 
+      // Language
+      infoArr = user.createNestedArray(FPSTR(_language));
+      uiDomString = F("<select class=\"form-control\" onchange=\"requestJson({");
+      uiDomString += FPSTR(_shorthand);
+      uiDomString += F(":{language:this.value}})\">");
+      for (uint8_t i = 0; i < numberOfLanguages; i++) {
+        uiDomString += F("<option value=\"");
+        uiDomString += wc_language_list[i]->id;
+        uiDomString += F("\"");
+        if (i == languageIndex) uiDomString += F(" selected");
+        uiDomString += F(">");
+        uiDomString += wc_language_list[i]->id;
+        uiDomString += F(" - ");
+        uiDomString += wc_language_list[i]->name;
+        uiDomString += F("</option>");
+      }
+      infoArr.add(uiDomString);
+
     }
 
 
@@ -158,6 +219,14 @@ class WordClock : public Usermod {
      */
     void addToJsonState(JsonObject& root)
     {
+      if (!initDone) return;  // prevent crash on boot applyPreset()
+
+      JsonObject usermod = root[FPSTR(_shorthand)];
+      if(!root.containsKey(FPSTR(_shorthand)))  {
+        if (usermod.isNull()) usermod = root.createNestedObject(FPSTR(_shorthand));
+      }
+
+      usermod[FPSTR(_language)] = languageId;
 
     }
 
@@ -171,10 +240,13 @@ class WordClock : public Usermod {
      */
     void addToJsonPreset(JsonObject& root)
     {
+      if (!initDone) return;  // prevent crash on boot applyPreset()
+
       JsonObject usermod = root[FPSTR(_shorthand)];
-      if (usermod.isNull()) {
-        usermod = root.createNestedObject(FPSTR(_shorthand));
+      if(!root.containsKey(FPSTR(_shorthand)))  {
+        if (usermod.isNull()) usermod = root.createNestedObject(FPSTR(_shorthand));
       }
+      
       usermod[FPSTR(_on)] = enabled;
     }
 
@@ -185,12 +257,28 @@ class WordClock : public Usermod {
      */
     void readFromJsonState(JsonObject& root)
     {
+      if (!initDone) return;  // prevent crash on boot applyPreset()
+
       JsonObject usermod = root[FPSTR(_shorthand)];
       if (!usermod.isNull()) {
-        if (usermod[FPSTR(_on)].is<bool>()) {
-          enabled = usermod[FPSTR(_on)].as<bool>();
+        enabled = usermod[FPSTR(_on)] | enabled;
+        if (!usermod[FPSTR(_language)].isNull()) {
+          changeLanguage(usermod[FPSTR(_language)]);
         }
       }
+      //   if (usermod[FPSTR(_on)].is<bool>()) {
+      //     enabled = usermod[FPSTR(_on)].as<bool>();
+      //   }
+      //   if (usermod[_language].is<String>()) {
+      //     languageId = usermod[_language].as<String>();
+      //     for (uint8_t i = 0; i < sizeof(wc_language_list)/sizeof(wc_language_list[0]); i++) {
+      //       if (languageId == wc_language_list[i]->id) {
+      //         languageIndex = i;
+      //         break;
+      //       }
+      //     }
+      //   }
+      // }
     }
 
 
@@ -235,6 +323,7 @@ class WordClock : public Usermod {
 
       top[FPSTR(_enabled)] = enabled;
       top["puristMode"] = purist;
+      top["language"] = languageId;
       top["invertedFace"] = invertedFace;
       top["invertedDots"] = invertedDots;
     }
@@ -265,10 +354,36 @@ class WordClock : public Usermod {
 
       configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
       configComplete &= getJsonValue(top["puristMode"], purist);
+
+      String tmp;
+      configComplete &= getJsonValue(top["language"], tmp);
+      if (configComplete) changeLanguage(tmp);
+
       configComplete &= getJsonValue(top["invertedFace"], invertedFace);
       configComplete &= getJsonValue(top["invertedDots"], invertedDots);
 
       return configComplete;
+    }
+
+
+    /*
+     * appendConfigData() is called when user enters usermod settings page
+     * it may add additional metadata for certain entry fields (adding drop down is possible)
+     * be careful not to add too much as oappend() buffer is limited to 3k
+     */
+    void appendConfigData()
+    {
+      oappend(SET_F("dd=addDropdown('")); oappend(String(FPSTR(_name)).c_str()); oappend(SET_F("','language');"));
+      for (uint8_t i = 0; i < numberOfLanguages; i++) {
+        oappend(SET_F("addOption(dd,'"));
+        // example: addOption(dd,'EN (english)','EN');
+        oappend(wc_language_list[i]->id);
+        oappend(SET_F(" ("));
+        oappend(wc_language_list[i]->name);
+        oappend(SET_F(")','"));
+        oappend(wc_language_list[i]->id);
+        oappend(SET_F("');"));
+      }
     }
 
 
@@ -309,3 +424,4 @@ const char WordClock::_name[]       PROGMEM = "Wordclock";
 const char WordClock::_shorthand[]  PROGMEM = "wq";
 const char WordClock::_enabled[]    PROGMEM = "enabled";
 const char WordClock::_on[]         PROGMEM = "on";
+const char WordClock::_language[]   PROGMEM = "language";
