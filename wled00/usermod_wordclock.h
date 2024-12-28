@@ -51,9 +51,7 @@ class WordClock : public Usermod {
       initDone = false,
       purist = true,
       doTransition = false, // enable transition effect
-      inTransition = false, // transition in progress
-      invertedFace = false,
-      invertedDots = false;
+      inTransition = false; // transition in progress
 
     static const char _name[];
     static const char _shorthand[];
@@ -382,8 +380,6 @@ class WordClock : public Usermod {
       top[FPSTR(_enabled)] = enabled;
       top["puristMode"] = purist;
       top["language"] = languageId;
-      top["invertedFace"] = invertedFace;
-      top["invertedDots"] = invertedDots;
     }
 
 
@@ -416,9 +412,6 @@ class WordClock : public Usermod {
       String tmp;
       configComplete &= getJsonValue(top["language"], tmp);
       if (configComplete) changeLanguage(tmp);
-
-      configComplete &= getJsonValue(top["invertedFace"], invertedFace);
-      configComplete &= getJsonValue(top["invertedDots"], invertedDots);
 
       return configComplete;
     }
@@ -463,8 +456,6 @@ class WordClock : public Usermod {
           inTransition = true;
           doTransition = false;
           transitionStart = millis();
-          Serial.print("frametime: ");
-          Serial.println(strip.getFrameTime());
         }
         // stop transition after 500ms
         if (millis() - transitionStart > 500) {
