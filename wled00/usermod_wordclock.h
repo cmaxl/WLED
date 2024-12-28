@@ -219,6 +219,55 @@ class WordClock : public Usermod {
       }
       infoArr.add(uiDomString);
 
+      // Time setter gets currently set time (from server via json/info) 
+      // and in/decreases to next 5 min or hour
+      // then sends the new time to the server (requestJson({time: unixTime}))
+      infoArr = user.createNestedArray(F("Time"));
+
+      uiDomString = F("<button class=\"btn btn-xs\" onclick=\"");
+            uiDomString += F("requestJson();");
+            uiDomString += F("var d = new Date(lastinfo.time);");
+            uiDomString += F("var t = Math.floor(d.getTime()/1000);");
+            uiDomString += F("t -= 3600;");
+            uiDomString += F("requestJson({time:t})\">");
+        uiDomString += F("--");
+      uiDomString += F("</button>");
+      uiDomString += F("<button class=\"btn btn-xs\" onclick=\"");
+            uiDomString += F("requestJson();");
+            uiDomString += F("var d = new Date(lastinfo.time);");
+            uiDomString += F("var t = Math.floor(d.getTime()/1000);");
+            uiDomString += F("t -= t%300 + 300;");
+            uiDomString += F("requestJson({time:t})\">");
+        uiDomString += F("-");
+      uiDomString += F("</button>");
+
+      // uiDomString += F("<button class=\"btn btn-xs\" onclick=\"");
+      //       uiDomString += F("var d = new Date();");
+      //       uiDomString += F("var t = Math.floor(d.getTime()/1000);");
+      //       uiDomString += F("requestJson({time:t})\">");
+      //   uiDomString += F("now");
+      // uiDomString += F("</button>");
+
+      uiDomString += F("<button class=\"btn btn-xs\" onclick=\"");
+            uiDomString += F("requestJson();");
+            uiDomString += F("var d = new Date(lastinfo.time);");
+            uiDomString += F("var t = Math.floor(d.getTime()/1000);");
+            uiDomString += F("t -= t%300 - 300;");
+            uiDomString += F("requestJson({time:t})\">");
+        uiDomString += F("+");
+      uiDomString += F("</button>");
+      uiDomString += F("<button class=\"btn btn-xs\" onclick=\"");
+            uiDomString += F("requestJson();");
+            uiDomString += F("var d = new Date(lastinfo.time);");
+            uiDomString += F("var t = Math.floor(d.getTime()/1000);");
+            uiDomString += F("t += 3600;");
+            uiDomString += F("requestJson({time:t})\">");
+        uiDomString += F("++");
+      uiDomString += F("</button>");
+
+
+      infoArr.add(uiDomString);
+
     }
 
 
