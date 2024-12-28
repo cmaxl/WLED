@@ -29,11 +29,12 @@ class WordClock : public Usermod {
     //Private class members. You can declare variables and functions only accessible to your usermod here
     const int8_t maskMinuteDots[4] = {110, 111, 112, 113};
     uint8_t 
-      languageIndex = 2,
-      maskLEDsOn[114] = {0};
+      languageIndex = 0,
+      maskLEDsOn[114] = {0},
+      maskLEDs_previous[114] = {0};
     int8_t maskBuffer[WQ_MASK_SIZE] = {0};
 
-    const uint8_t numberOfLanguages = 3;
+    const uint8_t numberOfLanguages = 5;
     static constexpr WordclockLanguage *wc_language_list[] = {
       &language_en,
       &language_de,
@@ -49,6 +50,8 @@ class WordClock : public Usermod {
       enabled = true,
       initDone = false,
       purist = true,
+      doTransition = false, // enable transition effect
+      inTransition = false, // transition in progress
       invertedFace = false,
       invertedDots = false;
 
@@ -61,7 +64,7 @@ class WordClock : public Usermod {
     // writes the maskLEDsOn array with the LEDs that are relevant based on the
     // wordMask array. The wordMask array contains the indices of the LEDs.
     // Essentially writes one row of the matrix to the maskLEDsOn array.
-    void updateLEDmask() {
+    void writeBufferToMask() {
       for (int8_t i=0; i < WQ_MASK_SIZE; i++) {
         if(maskBuffer[i] >= 0) maskLEDsOn[maskBuffer[i]] = 1;
         else break;
@@ -71,6 +74,9 @@ class WordClock : public Usermod {
     void updateDisplay(){
       uint8_t my_hour=hourFormat12(localTime);
       uint8_t my_minute=minute(localTime);
+
+      // add maskLEDsOn to maskLEDs_previous by or-ing them
+      for (uint8_t i=0; i<114; i++) maskLEDs_previous[i] |= maskLEDsOn[i]; 
 
       //clear maskLEDsOn
       memset(maskLEDsOn, 0, sizeof(maskLEDsOn));
@@ -85,22 +91,23 @@ class WordClock : public Usermod {
       //  otherwise: always on
       if(!purist || !(minuteIndex%6)) {
         memcpy_P(maskBuffer, language->maskPrefix, WQ_MASK_SIZE);
-        updateLEDmask();
+        writeBufferToMask();
       }
 
       // MINUTES
       memcpy_P(maskBuffer, &(language->maskMinutes[minuteIndex]), WQ_MASK_SIZE);
-      updateLEDmask();
+      writeBufferToMask();
 
       // HOURS
       memcpy_P(maskBuffer, &(language->maskHours[hourIndex]), WQ_MASK_SIZE);
-      updateLEDmask();
+      writeBufferToMask();
 
       // MINUTE DOTS
       for (uint8_t i=0; i<(my_minute%5); i++) 
         maskLEDsOn[maskMinuteDots[i]] = 1;
 
-      strip.trigger();
+      doTransition = true;
+
     }
 
     void changeLanguage(String newLang) {
@@ -151,6 +158,8 @@ class WordClock : public Usermod {
       // if usermod is disabled or called during strip updating just exit
       // NOTE: on very long strips strip.isUpdating() may always return true so update accordingly
       if (!enabled || strip.isUpdating()) return;
+
+      if(inTransition) strip.trigger();
 
       static uint32_t lastDisplayUpdate = 0;
       if(millis() - lastDisplayUpdate > 200) {
@@ -394,14 +403,49 @@ class WordClock : public Usermod {
      */
     void handleOverlayDraw()
     {
-      if(enabled){
-        // loop over all face LEDs
-        for (int i=0; i<110; i++)
-          // check mask and turn pixel off if mask is 0
-          if (!maskLEDsOn[i] != invertedFace) strip.setPixelColor(i, RGBW32(0,0,0,0));
-        //loop over all dot LEDs
-        for(int i=110; i<114; i++)
-          if (!maskLEDsOn[i] != invertedDots) strip.setPixelColor(i, RGBW32(0,0,0,0));
+      if(!enabled) return;
+
+      // TODO: add background
+      static uint32_t transitionStart = 0;
+      static uint8_t transitionStep = 0;
+      if (inTransition || doTransition) {
+        // executed once a transition is triggered
+        if (doTransition) {
+          inTransition = true;
+          doTransition = false;
+          transitionStart = millis();
+          Serial.print("frametime: ");
+          Serial.println(strip.getFrameTime());
+        }
+        // stop transition after 500ms
+        if (millis() - transitionStart > 500) {
+          inTransition = false;
+          memset(maskLEDs_previous, 0, sizeof(maskLEDsOn));
+        }
+
+        transitionStep = (millis() - transitionStart) >> 1;
+        if (transitionStep > 255) transitionStep = 255;
+      }
+
+      // loop over all LEDs
+      for (int i=0; i<114; i++) {
+        
+        // continue if LED is already on and will stay on in a transition
+        if(maskLEDsOn[i] || (inTransition && maskLEDsOn[i] && maskLEDs_previous[i]))
+          continue;
+
+        uint32_t pxl = RGBW32(0,0,0,0);
+        if (inTransition) {
+          // Pixel needs fade in
+          if(maskLEDsOn[i] && !maskLEDs_previous[i]) {
+            pxl = color_blend(RGBW32(0,0,0,0), strip.getPixelColor(i), transitionStep);
+          } 
+          // Pixel needs fade out
+          if(!maskLEDsOn[i] && maskLEDs_previous[i]) {
+            pxl = color_blend(strip.getPixelColor(i), RGBW32(0,0,0,0), transitionStep);
+          }
+        }
+        strip.setPixelColor(i, pxl);
       }
     }
 
