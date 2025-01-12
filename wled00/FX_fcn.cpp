@@ -1283,7 +1283,7 @@ uint8_t WS2812FX::estimateCurrentAndLimitBri() {
 
   size_t pLen = 0; //getLengthPhysical();
   size_t powerSum = 0;
-  for (uint_fast8_t bNum = 0; bNum < busses.getNumBusses(); bNum++) {
+  for (uint_fast8_t bNum = 0; bNum < 1; bNum++) { // modded for wordclock to only use the first (physical) bus
     Bus *bus = busses.getBus(bNum);
     if (!IS_DIGITAL(bus->getType())) continue; //exclude non-digital network busses
     uint16_t len = bus->getLength();
