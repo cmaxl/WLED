@@ -467,25 +467,30 @@ class WordClock : public Usermod {
         if (transitionStep > 255) transitionStep = 255;
       }
 
-      // loop over all LEDs
+      // loop over all LEDs relevant to the clock
+      // copy each color from the virtual strip as the background (will be black if not configured)
       for (int i=0; i<114; i++) {
         
         // continue if LED is already on and will stay on in a transition
-        if(maskLEDsOn[i] || (inTransition && maskLEDsOn[i] && maskLEDs_previous[i]))
+        if(maskLEDsOn[i] || (inTransition && maskLEDsOn[i] && maskLEDs_previous[i])) {
           continue;
+        }
 
-        uint32_t pxl = RGBW32(0,0,0,0);
+        // copy color from virtual to physical strip (if not a dot) and apply transition
+        uint32_t bg = (i < 110) ? strip.getPixelColor(i + 121) : 0;
+
         if (inTransition) {
+          uint32_t pxl = (i < 110) ? strip.getPixelColor(i) : strip.getPixelColor(i);
           // Pixel needs fade in
           if(maskLEDsOn[i] && !maskLEDs_previous[i]) {
-            pxl = color_blend(RGBW32(0,0,0,0), strip.getPixelColor(i), transitionStep);
+            bg = color_blend(bg, pxl, transitionStep);
           } 
           // Pixel needs fade out
           if(!maskLEDsOn[i] && maskLEDs_previous[i]) {
-            pxl = color_blend(strip.getPixelColor(i), RGBW32(0,0,0,0), transitionStep);
+            bg = color_blend(pxl, bg, transitionStep);
           }
         }
-        strip.setPixelColor(i, pxl);
+        strip.setPixelColor(i, bg);
       }
     }
 
