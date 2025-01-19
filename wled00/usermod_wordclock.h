@@ -472,7 +472,7 @@ class WordClock : public Usermod {
       for (int i=0; i<114; i++) {
         
         // continue if LED is already on and will stay on in a transition
-        if(maskLEDsOn[i] || (inTransition && maskLEDsOn[i] && maskLEDs_previous[i])) {
+        if((!inTransition && maskLEDsOn[i]) || (inTransition && maskLEDsOn[i] && maskLEDs_previous[i])) {
           continue;
         }
 
@@ -490,6 +490,7 @@ class WordClock : public Usermod {
             bg = color_blend(pxl, bg, transitionStep);
           }
         }
+
         strip.setPixelColor(i, bg);
       }
     }
