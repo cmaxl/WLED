@@ -458,7 +458,7 @@ class WordClock : public Usermod {
           transitionStart = millis();
         }
         // stop transition after 500ms
-        if (millis() - transitionStart > 500) {
+        if (millis() - transitionStart > 300) {
           inTransition = false;
           memset(maskLEDs_previous, 0, sizeof(maskLEDsOn));
         }
