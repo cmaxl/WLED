@@ -4,14 +4,14 @@
 
 const uint8_t IniFile::maxFilenameLen = INI_FILE_MAX_FILENAME_LEN;
 
-IniFile::IniFile(const char* filename, uint8_t mode,
+IniFile::IniFile(const char* filename, 
 		 bool caseSensitive)
 {
   if (strlen(filename) <= maxFilenameLen)
     strcpy(_filename, filename);
   else
     _filename[0] = '\0';
-  _mode = mode;
+  // _mode = mode;
   _caseSensitive = caseSensitive;
 }
 
@@ -42,7 +42,7 @@ bool IniFile::getValue(const char* section, const char* key,
 			  char* buffer, size_t len, IniFileState &state) const
 {
   bool done = false;
-  if (!_file.isOpen()) {
+  if (!_file) {
     _error = errorFileNotOpen;
     return true;
   }
@@ -290,18 +290,18 @@ bool IniFile::getValue(const char* section, const char* key,
 // }
 
 //int8_t IniFile::readLine(SdBaseFile &file, char *buffer, size_t len, uint32_t &pos)
-IniFile::error_t IniFile::readLine(SdBaseFile &file, char *buffer, size_t len, uint32_t &pos)
+IniFile::error_t IniFile::readLine(File &file, char *buffer, size_t len, uint32_t &pos)
 {
-  if (!file.isOpen())
+  if (!file)
     return errorFileNotOpen;
  
   if (len < 3) 
     return errorBufferTooSmall;
 
-  if (!file.seekSet(pos))
+  if (!file.seek(pos))
     return errorSeekError;
 
-  size_t bytesRead = file.read(buffer, len);
+  size_t bytesRead = file.read(reinterpret_cast<uint8_t*>(buffer), len);
   if (!bytesRead) {
     buffer[0] = '\0';
     //return 1; // done

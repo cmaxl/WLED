@@ -15,6 +15,7 @@ class GameFrame : public Usermod {
   public:
 
   private:
+    File myFile;
     bool
       usermodActive = false,
       prevState = false,
@@ -124,7 +125,7 @@ class GameFrame : public Usermod {
 
   void closeMyFile()
   {
-    if (myFile.isOpen()) 
+    if (myFile) 
     {
       if (GF_DEBUG_FILES) DEBUG_PRINTLN(F("Closing Image..."));
       myFile.close();
@@ -132,6 +133,7 @@ class GameFrame : public Usermod {
   }
 
   void updateState() {
+    return;
     if(usermodActive){
       if(usermodActive != prevState) savePreset(42); // save current settings in a temporary preset
 
@@ -163,29 +165,34 @@ class GameFrame : public Usermod {
     updateState();
 
     closeMyFile();
-    SD_ADAPTER.chdir("/");
+    // SD_ADAPTER.open("/");
 
     char folder[13];
 
     if (numFolders == 0)
     {
       numFolders = 0;
-      // file indexes appear to loop after 2048
-      for (int fileIndex = 0; fileIndex < 2048; fileIndex++)
-      {
-        myFile.open(SD_ADAPTER.vwd(), fileIndex, O_READ);
-        if (myFile.isDir()) {
+      File root = SD_ADAPTER.open("/");
+      if (!root) {
+        DEBUG_PRINTLN("Failed to open root directory.");
+        return;
+      }
+      if (!root.isDirectory()) {
+        DEBUG_PRINTLN("Root is not a directory.");
+        return;
+      }
+
+      File file = root.openNextFile();
+      while (file) {
+        if (file.isDirectory()) {
           DEBUG_PRINTLN("---");
           numFolders++;
-          DEBUG_PRINT("File Index: ");
-          DEBUG_PRINTLN(fileIndex);
-          myFile.getName(folder, 13);
           DEBUG_PRINT("Folder: ");
-          DEBUG_PRINTLN(folder);
-          closeMyFile();
+          DEBUG_PRINTLN(file.name());
         }
-        else closeMyFile();
+        file = root.openNextFile();
       }
+      root.close();
       DEBUG_PRINT(numFolders);
       DEBUG_PRINTLN(" folders found.");
     }
@@ -238,7 +245,7 @@ class GameFrame : public Usermod {
     baseTime = millis();
     holdTime = 0;
     char folder[9];
-    SD_ADAPTER.chdir("/");
+    // SD_ADAPTER.open("/");
     fileIndex = 0;
     offsetX = 0;
     offsetY = 0;
@@ -261,7 +268,7 @@ class GameFrame : public Usermod {
       {
         Serial.print(F("Chaining: "));
         Serial.println(chainDir);
-        SD_ADAPTER.chdir(chainDir);
+        // SD_ADAPTER.open(chainDir);
         chainIndex++;
       }
       else
@@ -269,7 +276,7 @@ class GameFrame : public Usermod {
         // chaining concluded
         chainIndex = -1;
         chainRootFolder[0] = '\0';
-        SD_ADAPTER.chdir("/");
+        // SD_ADAPTER.open("/");
       }
     }
 
@@ -280,7 +287,7 @@ class GameFrame : public Usermod {
       Serial.println(nextFolder);
       if (file_onSD(nextFolder))
       {
-        SD_ADAPTER.chdir(nextFolder);
+        // SD_ADAPTER.open(nextFolder);
         strcpy_P(curFolder, nextFolder);
       }
       else
@@ -315,12 +322,22 @@ class GameFrame : public Usermod {
           foundNewFolder = false;
           while (foundNewFolder == false)
           {
-            myFile.open(SD_ADAPTER.vwd(), folderIndex, O_READ);
-            if (myFile.isDir()) {
+            File root = SD_ADAPTER.open("/"); // Open the root directory
+            File entry = root.openNextFile(); // Get the first file in the directory
+            if (!entry) {
+              Serial.println(F("Failed to open root directory."));
+              return;
+            }
+            int currentIndex = 0;
+            while (entry) {
+              if (currentIndex == folderIndex && entry.isDirectory()) {
               foundNewFolder = true;
               i++;
+              break;
+              }
+              entry = root.openNextFile(); // Move to the next file
+              currentIndex++;
             }
-            closeMyFile();
             folderIndex++;
           }
         }
@@ -330,22 +347,36 @@ class GameFrame : public Usermod {
 
       while (foundNewFolder == false)
       {
-        myFile.open(SD_ADAPTER.vwd(), folderIndex, O_READ);
-        myFile.getName(folder, 13);
+        File root = SD_ADAPTER.open("/"); // Open the root directory
+        File entry = root.openNextFile(); // Get the first file in the directory
+        int currentIndex = 0;
 
-        // ignore system folders that start with "00"
-        if (myFile.isDir() && folder[0] != 48 && folder[1] != 48) {
-          foundNewFolder = true;
-          Serial.print(F("Folder Index: "));
-          Serial.println(folderIndex);
-          Serial.print(F("Opening Folder: "));
-          Serial.println(folder);
-
-          SD_ADAPTER.chdir(folder);
-          closeMyFile();
-          strcpy_P(curFolder, folder);
+        if (folderIndex >= numFolders) {
+          Serial.println(F("folderIndex out of range!"));
+          folderIndex = 0; // reset folder index
         }
-        else closeMyFile();
+        
+
+        while (entry)
+        {
+          if (currentIndex == folderIndex && entry.isDirectory())
+          {
+        foundNewFolder = true;
+        Serial.print(F("Folder Index: "));
+        Serial.println(folderIndex);
+        Serial.print(F("Opening Folder: "));
+        Serial.println(entry.name());
+
+        // SD_ADAPTER.open(entry.name());
+        strcpy_P(curFolder, entry.name());
+        entry.close();
+        break;
+          }
+          entry.close();
+          entry = root.openNextFile(); // Move to the next file
+          currentIndex++;
+        }
+        root.close();
         folderIndex++;
       }
     }
@@ -358,22 +389,20 @@ class GameFrame : public Usermod {
       Serial.print(F("Chaining detected: "));
       Serial.println(folder);
       memcpy(chainRootFolder, folder, 8);
-      SD_ADAPTER.chdir(chainDir);
+      // SD_ADAPTER.open(chainDir);
       chainIndex = 1;
     }
-
-    char firstImage[6];
-    strcpy_P(firstImage, PSTR("0.bmp"));
-    if (file_onSD(firstImage))
+    
+    char filename[32];
+    snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR("/0.BMP"));
+    if (file_onSD(filename))
     {
       Serial.print(F("Opening File: "));
-      Serial.print(folder);
+      Serial.print(curFolder);
       Serial.println(F("/config.ini"));
       readIniFile();
-
-      char tmp[6];
-      strcpy_P(tmp, PSTR("0.bmp"));
-      refreshImageDimensions(tmp);
+      
+      refreshImageDimensions(filename);
 
       Serial.print(F("Hold (in ms): "));
       Serial.println(holdTime);
@@ -414,8 +443,8 @@ class GameFrame : public Usermod {
 
       char tmp_0[6];
       char tmp_1[6];
-      strcpy_P(tmp_0, PSTR("0.bmp"));
-      strcpy_P(tmp_1, PSTR("1.bmp"));
+      strcpy_P(tmp_0, PSTR("0.BMP"));
+      strcpy_P(tmp_1, PSTR("1.BMP"));
       if (file_onSD(tmp_0) && (!file_onSD(tmp_1)))
       {
         singleGraphic = true;
@@ -499,16 +528,18 @@ class GameFrame : public Usermod {
       }
     }
 
+    char filename[32];
     if (singleGraphic == false)
     {
       char bmpFile[13]; // 8-digit number + .bmp + null byte
       itoa(fileIndex, bmpFile, 10);
-      strcat(bmpFile, ".bmp");
-      if (!file_onSD(bmpFile))
+      strcat(bmpFile, PSTR(".BMP"));
+      snprintf(filename, sizeof(filename), "%s/%s", curFolder, bmpFile);
+      if (!file_onSD(filename))
       {
         fileIndex = 0;
         itoa(fileIndex, bmpFile, 10);
-        strcat(bmpFile, ".bmp");
+        strcat(bmpFile, PSTR(".BMP"));
         if (finishBeforeProgressing && (offsetSpeedX != 0 || offsetSpeedY != 0)); // translating image - continue animating until moved off screen
         else if (folderLoop == false || timerLapsed == true)
         {
@@ -521,9 +552,12 @@ class GameFrame : public Usermod {
           }
         }
       }
-      bmpDraw(bmpFile, 0, 0);
+      snprintf(filename, sizeof(filename), "%s/%s", curFolder, bmpFile);
     }
-    else bmpDraw("0.bmp", 0, 0);
+    else {
+      snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR( "/0.BMP"));
+    }
+    bmpDraw(filename, 0, 0);
 
     // print draw time in milliseconds
     drawTime = millis() - lastTime;
@@ -549,11 +583,12 @@ class GameFrame : public Usermod {
       return;
     }
 
-    // storing dimentions for image
-    // Open requested file on SD card
-    if (!myFile.open(filename, O_READ)) {
-      Serial.println(F("File open failed"));
-      // // sdErrorMessage();
+    // storing dimensions for image
+    // Open requested file on SD card using ESP32 SD library
+    myFile = SD_ADAPTER.open(filename, FILE_READ);
+    if (!myFile) {
+      Serial.print(filename);
+      Serial.println(F(" File open failed"));
       return;
     }
 
@@ -605,7 +640,7 @@ class GameFrame : public Usermod {
       return;
     }
 
-    if (!myFile.isOpen())
+    if (!myFile)
     {
       if(GF_DEBUG_FILES) {
         Serial.println();
@@ -619,13 +654,13 @@ class GameFrame : public Usermod {
       }
 
       // Open requested file on SD card
-      if (!myFile.open(filename, O_READ)) {
+      myFile = SD_ADAPTER.open(filename, FILE_READ);
+      if (!myFile) {
         Serial.println(F("File open failed"));
-        // sdErrorMessage();
         return;
       }
     }
-    else myFile.rewind();
+    else myFile.seek(0);
 
     // Parse BMP header
     if (read16(myFile) == 0x4D42) { // BMP signature
@@ -694,8 +729,8 @@ class GameFrame : public Usermod {
               pos = (bmpImageoffset + (offsetX * -3) + (bmpHeight - 1 - (row + offsetY)) * rowSize);
             else     // Bitmap is stored top-to-bottom
               pos = bmpImageoffset + row * rowSize;
-            if (myFile.curPosition() != pos) { // Need seek?
-              myFile.seekSet(pos);
+            if (myFile.position() != pos) { // Need seek?
+              myFile.seek(pos);
               buffidx = sizeof(sdbuffer); // Force buffer reload
             }
 
@@ -757,6 +792,7 @@ class GameFrame : public Usermod {
               // paint pixel color
             } // end pixel
           } // end scanline
+          strip.trigger(); // force strip refresh
         } // end goodBmp
       }
     }
@@ -776,9 +812,8 @@ class GameFrame : public Usermod {
   {
     const size_t bufferLen = 50;
     char buffer[bufferLen];
-    char configFile[11];
-    strcpy_P(configFile, PSTR("config.ini"));
-    const char *filename = configFile;
+    char filename[32];
+    snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR("/config.ini"));
     IniFile ini(filename);
     if (!ini.open()) {
       DEBUG_PRINT(filename);
@@ -926,15 +961,27 @@ class GameFrame : public Usermod {
   // BMP data is stored little-endian, Arduino is little-endian too.
   // May need to reverse subscript order if porting elsewhere.
 
-  uint16_t read16(SdFile& f) {
+  uint16_t read16(File& f) {
     uint16_t result;
-    f.read(&result, 2);
+    uint8_t buffer[2];
+    f.read(buffer, 2);
+    result = buffer[1];
+    result <<= 8;
+    result |= buffer[0];
     return result;
   }
 
-  uint32_t read32(SdFile& f) {
+  uint32_t read32(File& f) {
     uint32_t result;
-    f.read(&result, 4);
+    uint8_t buffer[4];
+    f.read(buffer, 4);
+    result = buffer[3];
+    result <<= 8;
+    result |= buffer[2];
+    result <<= 8;
+    result |= buffer[1];
+    result <<= 8;
+    result |= buffer[0];
     return result;
   }
 
@@ -943,9 +990,13 @@ class GameFrame : public Usermod {
     void setup() {
       // initSD();
       #ifdef SD_ADAPTER
-        sdCard = (UsermodSdCard*) usermods.lookup(USERMOD_ID_SD_CARD)
+        sdCard = (UsermodSdCard*) usermods.lookup(USERMOD_ID_SD_CARD);
       #endif
       prevState = usermodActive;
+      
+      initGameFrame();
+      nextImage();
+      drawFrame();
     }
 
 
@@ -977,14 +1028,15 @@ class GameFrame : public Usermod {
       if(!sdCard->configSdEnabled) return;
 
       // periodically check if SD card is inserted
-      if(!file_onSD("/") && millis() % 5000 == 0) {
-        sdCard.setup();
-        if(file_onSD("/")) {
-          initGameFrame();
-          nextImage();
-          drawFrame();
-        }
-      }
+      // if(!file_onSD("/") && millis() % 5000 == 0) {
+      //   if(SD.begin()) {
+      //     if(file_onSD("/")) {
+      //   initGameFrame();
+      //   nextImage();
+      //   drawFrame();
+      //     }
+      //   }
+      // }
 
       currentSecond = second(localTime);
       // currently playing images?
@@ -1052,7 +1104,7 @@ class GameFrame : public Usermod {
 
       if(usermodActive != prevState) {
         updateState();
-        serializeConfig();
+        // serializeConfig();
         prevState = usermodActive;
       }
     }
@@ -1168,7 +1220,7 @@ class GameFrame : public Usermod {
 
     JsonArray sd1Arr = user.createNestedArray("SD status"); //name
     // show SD init status
-    uiDomString = sdReady ? "SD card present" : "no SD card";
+    uiDomString = file_onSD("/") ? "SD card present" : "no SD card";
 
     uiDomString += "</td></tr>";
     sd1Arr.add(uiDomString);

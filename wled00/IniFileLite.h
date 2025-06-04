@@ -3,13 +3,20 @@
 
 #include "wled.h"
 
+// SD connected via MMC / SPI
+#if defined(WLED_USE_SD_MMC)
+  #define SD_ADAPTER SD_MMC
+  #include "SD_MMC.h"
+// SD connected via SPI (adjustable via usermod config)
+#elif defined(WLED_USE_SD_SPI)
+  #define SD_ADAPTER SD
+  #include "SD.h"
+  #include "SPI.h"
+#endif
+
 // Maximum length for filename, excluding NULL char 26 chars allows an
 // 8.3 filename instead and 8.3 directory with a leading slash
 #define INI_FILE_MAX_FILENAME_LEN 26
-
-// #include "SdFat.h"
-using namespace sdfat;
-//#include "Ethernet.h"
 
 class IniFileState;
 
@@ -30,7 +37,7 @@ public:
   static const uint8_t maxFilenameLen;
 
   // Create an IniFile object. It isn't opened until open() is called on it.
-  IniFile(const char* filename, uint8_t mode = O_READ,
+  IniFile(const char* filename, 
 	  bool caseSensitive = false);
   ~IniFile();
 
@@ -41,96 +48,78 @@ public:
 
   inline error_t getError(void) const;
   inline void clearError(void) const;
-  // Get the file mode (FILE_READ/FILE_WRITE)
-  inline uint8_t getMode(void) const;
-
-  // Get the filename asscoiated with the ini file object
+  // Get the file mode ("r", "w", etc.)
+  // inline uint8_t getMode(void) const;
   inline const char* getFilename(void) const;
 
   bool validate(char* buffer, size_t len) const;
-  
+
   // Get value from the file, but split into many short tasks. Return
   // value: false means continue, true means stop. Call getError() to
   // find out if any error
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, IniFileState &state) const;
+                char* buffer, size_t len, IniFileState &state) const;
 
   // Get value, as one big task. Return = true means value is present
   // in buffer
   bool getValue(const char* section, const char* key,
-		  char* buffer, size_t len) const; 
+                char* buffer, size_t len) const;
 
   // Get the value as a string, storing the result in a new buffer
   // (not the working buffer)
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, char *value, size_t vlen) const;
+                char* buffer, size_t len, char *value, size_t vlen) const;
 
   // Get a boolean value
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, bool& b) const;
+                char* buffer, size_t len, bool& b) const;
 
   // Get an integer value
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, int& val) const;
+                char* buffer, size_t len, int& val) const;
 
   // Get a uint16_t value
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, uint16_t& val) const;
+                char* buffer, size_t len, uint16_t& val) const;
 
   // Get a long value
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, long& val) const;
+                char* buffer, size_t len, long& val) const;
 
   bool getValue(const char* section, const char* key,
-		   char* buffer, size_t len, unsigned long& val) const;
+                char* buffer, size_t len, unsigned long& val) const;
 
-//  bool getIPAddress(const char* section, const char* key,
-//		       char* buffer, size_t len, uint8_t* ip) const;
-  
-//#if defined(ARDUINO) && ARDUINO >= 100
-//  bool getIPAddress(const char* section, const char* key,
-//		       char* buffer, size_t len, IPAddress& ip) const;
-//#endif
-
-  // bool getMACAddress(const char* section, const char* key,
-		// 	char* buffer, size_t len, uint8_t mac[6]) const;
-
-  // Utility function to read a line from a file, make available to all
-  //static int8_t readLine(SdBaseFile &file, char *buffer, size_t len, uint32_t &pos);
-  static error_t readLine(SdBaseFile &file, char *buffer, size_t len, uint32_t &pos);
+  static error_t readLine(File &file, char *buffer, size_t len, uint32_t &pos);
   static bool isCommentChar(char c);
   static char* skipWhiteSpace(char* str);
   static void removeTrailingWhiteSpace(char* str);
 
   bool getCaseSensitive(void) const;
   void setCaseSensitive(bool cs);
-  
-  protected:
-  // True means stop looking, false means not yet found
-  bool findSection(const char* section, char* buffer, size_t len,	
-		      IniFileState &state) const;
-  bool findKey(const char* section, const char* key, char* buffer,
-		 size_t len, char** keyptr, IniFileState &state) const;
 
+protected:
+  // True means stop looking, false means not yet found
+  bool findSection(const char* section, char* buffer, size_t len,
+                   IniFileState &state) const;
+  bool findKey(const char* section, const char* key, char* buffer,
+               size_t len, char** keyptr, IniFileState &state) const;
 
 private:
   char _filename[INI_FILE_MAX_FILENAME_LEN];
-  uint8_t _mode;
+  // uint8_t _mode;
   mutable error_t _error;
-  mutable SdBaseFile _file;
+  mutable File _file; // Use File from the ESP32 SD library
   bool _caseSensitive;
 };
-
 bool IniFile::open(void)
 {
-  if (_file.isOpen())
+  if (_file)
     _file.close();
-  _file.open(_filename, _mode);
+  _file = SD_MMC.open(_filename, FILE_READ);
   if (isOpen()) {
     _error = errorNoError;
     return true;
-  }
-  else {
+  } else {
     _error = errorFileNotFound;
     return false;
   }
@@ -138,13 +127,13 @@ bool IniFile::open(void)
 
 void IniFile::close(void)
 {
-  if (_file.isOpen())
+  if (_file)
     _file.close();
 }
 
 bool IniFile::isOpen(void) const
 {
-  return _file.isOpen();
+  return _file;
 }
 
 IniFile::error_t IniFile::getError(void) const
@@ -157,10 +146,10 @@ void IniFile::clearError(void) const
   _error = errorNoError;
 }
 
-uint8_t IniFile::getMode(void) const
-{
-  return _mode;
-}
+// uint8_t IniFile::getMode(void) const
+// {
+//   return _mode;
+// }
 
 const char* IniFile::getFilename(void) const
 {
