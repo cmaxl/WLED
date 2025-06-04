@@ -11,6 +11,48 @@
 
 #define BUFFPIXEL 16 // number of pixels to buffer when reading BMP files
 
+struct dd_options_t {
+  const int value; // value to be set
+  const char name[21]; // name to be shown in dropdown
+};
+
+static dd_options_t playModes PROGMEM[] = {
+  {0, "Sequential"},
+  {1, "Random"},
+  // {2, "Pause"}
+};
+
+static dd_options_t cycleTimes PROGMEM[] = {
+  {1, "10 secs"},
+  {2, "30 secs"},
+  {3, "1 min"},
+  {4, "2 min"},
+  {5, "5 min"},
+  {6, "10 min"},
+  {7, "30 min"},
+  {8, "Infinite"}
+};
+
+template <size_t N>
+String generateDDoptions(const dd_options_t (&options)[N], int selectedValue) {
+  int count = N;
+  String result = "";
+  for (int i = 0; i < count; i++) {
+    result += F("<option value=\"");
+    result += String(options[i].value);
+    if (options[i].value != selectedValue) {
+      result += F("\">");
+    }
+    else {
+      result += F("\" selected>");
+    }
+    result += options[i].name;
+    result += F("</option>");
+  }
+  Serial.println(result); // Debugging output
+  return result;
+}
+
 class GameFrame : public Usermod {
   public:
 
@@ -351,6 +393,7 @@ class GameFrame : public Usermod {
         File entry = root.openNextFile(); // Get the first file in the directory
         int currentIndex = 0;
 
+        // TODO: catch if no sd card is inserted
         if (folderIndex >= numFolders) {
           Serial.println(F("folderIndex out of range!"));
           folderIndex = 0; // reset folder index
@@ -1140,73 +1183,18 @@ class GameFrame : public Usermod {
     // Animation Control butttons 
     // TODO: make it more appealing
     if(usermodActive) {
-      JsonArray animationSettingsArr = user.createNestedArray("Animation: " + String(curFolder)); //name
+
+      JsonArray animationSettingsArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
 
       // playMode 0 = sequential, 1 = random, 2 = pause animation
-      String animationDomString = "<button class=\"btn infobtn\" onclick=\"requestJson({playMode:";
-      String playModeFriendlyName;
-      switch(playMode) {
-        case 0:
-          animationDomString += "1";
-          playModeFriendlyName = "Sequential";
-          break;
-        case 1:
-          animationDomString += "0";
-          playModeFriendlyName = "Random";
-          break;
-        // case 2:
-        //   animationDomString += "0";
-        //   playModeFriendlyName = "Pause";
-        //   break;
-      }
-      animationDomString +=  "});return false;\">";
-      animationDomString += playModeFriendlyName;
-      animationDomString += "</button>";
+      String animationDomString = F("<select class=\"btn\" onchange=\"requestJson({playMode:event.target.value});return false;\">");
+      animationDomString += generateDDoptions(playModes, playMode);
+      animationDomString += F("</select>");
 
       // cycleTimeSettings button
-      animationDomString += "<button class=\"btn infobtn\" onclick=\"requestJson({cycleTimeSetting:";
-      String cycleTimeStr;
-      switch(cycleTimeSetting) {
-        case 1:
-          animationDomString += "2";
-          cycleTimeStr = "10 sec";
-          break;
-        case 2:
-          animationDomString += "3";
-          cycleTimeStr = "30 sec";
-          break;
-        case 3:
-          animationDomString += "4";
-          cycleTimeStr = "1 min";
-          break;
-        case 4:
-          animationDomString += "5";
-          cycleTimeStr = "5 min";
-          break;
-        case 5:
-          animationDomString += "6";
-          cycleTimeStr = "15 min";
-          break;
-        case 6:
-          animationDomString += "7";
-          cycleTimeStr = "30 min";
-          break;
-        case 7:
-          animationDomString += "8";
-          cycleTimeStr = "60 min";
-          break;
-        case 8:
-          animationDomString += "1";
-          cycleTimeStr = "Infinite";
-          break;
-        default:
-          animationDomString += "1";
-          cycleTimeStr = "10 sec";
-          break;
-      }
-      animationDomString +=  "});return false;\">";
-      animationDomString += cycleTimeStr;
-      animationDomString += "</button>";
+      animationDomString += F("<select class=\"btn\" onchange=\"requestJson({cycleTimeSetting:event.target.value});return false;\">");
+      animationDomString += generateDDoptions(cycleTimes, cycleTimeSetting);
+      animationDomString += F("</select>");
 
       // NextImage trigger button
       animationDomString += "<button class=\"btn infobtn\" onclick=\"requestJson({NextImage:";
