@@ -33,34 +33,15 @@ static dd_options_t cycleTimes PROGMEM[] = {
   {8, "Infinite"}
 };
 
-template <size_t N>
-String generateDDoptions(const dd_options_t (&options)[N], int selectedValue) {
-  int count = N;
-  String result = "";
-  for (int i = 0; i < count; i++) {
-    result += F("<option value=\"");
-    result += String(options[i].value);
-    if (options[i].value != selectedValue) {
-      result += F("\">");
-    }
-    else {
-      result += F("\" selected>");
-    }
-    result += options[i].name;
-    result += F("</option>");
-  }
-  Serial.println(result); // Debugging output
-  return result;
-}
-
 class GameFrame : public Usermod {
   public:
 
   private:
     File myFile;
     bool
-      usermodActive = false,
-      prevState = false,
+      enabled = false,
+      initDone = false,
+      ready = false,
       updateConfig = false,
       showOnce = false,
       logoPlayed = false, // plays logo animation correctly reardless of playMode
@@ -120,6 +101,13 @@ class GameFrame : public Usermod {
     #else
       void* sdCard = nullptr;
     #endif
+
+    // strings to reduce flash memory usage (used more than twice)
+    static const char _name[];
+    static const char _enabled[];
+    static const char _nextImage[];
+    static const char _playMode[];
+    static const char _cycleTimeSetting[];
   
   uint8_t dim8_jer( uint8_t x )
   {
@@ -174,40 +162,40 @@ class GameFrame : public Usermod {
     }
   }
 
-  void updateState() {
-    return;
-    if(usermodActive){
-      if(usermodActive != prevState) savePreset(42); // save current settings in a temporary preset
+  void initGameFrame() {
 
-      strip.setSegment(0, 0, 16, 1, 0, 0, 0, 16);
-      strip.setPixelSegment(0);
-      strip.setMode(0, FX_MODE_BPM);
-      Segment &seg = strip.getSegment(0);
-      setValuesFromSegment(0);
-      seg.setColor(0, 0);
-      seg.setColor(1, 0);
-      seg.setColor(2, 0);
-      stateChanged = true;  // inform external devices/UI of change
-      colorUpdated(CALL_MODE_DIRECT_CHANGE);
-    }
-    else {
-      if(usermodActive != prevState) {
-        // strip.setMode(0, FX_MODE_STATIC);
-        applyPreset(42); // apply previous settings
-        
-        strip.trigger();  // force strip refresh
-        stateChanged = true;  // inform external devices/UI of change
-        colorUpdated(CALL_MODE_DIRECT_CHANGE);
-        // deletePreset(42); // delete temporary preset
+    DEBUG_PRINTLN(F("GameFrame: initGameFrame()"));
+
+    // reset variables
+    ready = false;
+    logoPlayed = false;
+    fileIndex = 0;
+    offsetX = 0;
+    offsetY = 0;
+    folderIndex = 0;
+    singleGraphic = false;
+    clockAnimationActive = false;
+    clockShown = false;
+    fileIndex = 0;
+    folderIndex = 0;
+    chainIndex = -1;
+    numFolders = 0;
+
+
+    if (SD_ADAPTER.cardType() == CARD_NONE) {
+      sdCard->setup();
+      if (SD_ADAPTER.cardType() == CARD_NONE) {
+        DEBUG_PRINTLN(F("GameFrame: no SD card detected!"));
+        return;
       }
     }
-  }
 
-  void initGameFrame() {
-    updateState();
+    if(!file_onSD("/00system")) {
+      DEBUG_PRINTLN(F("GameFrame: not a valid gameframe SD card!"));
+      return;
+    }
 
     closeMyFile();
-    // SD_ADAPTER.open("/");
 
     char folder[13];
 
@@ -238,6 +226,13 @@ class GameFrame : public Usermod {
       DEBUG_PRINT(numFolders);
       DEBUG_PRINTLN(" folders found.");
     }
+
+    // play logo animation
+    strcpy_P(curFolder, PSTR("/00system/logo"));
+    readIniFile(); 
+    drawFrame();
+
+    ready = true;
   }
 
   void setCycleTime()
@@ -287,14 +282,13 @@ class GameFrame : public Usermod {
     baseTime = millis();
     holdTime = 0;
     char folder[9];
-    // SD_ADAPTER.open("/");
     fileIndex = 0;
     offsetX = 0;
     offsetY = 0;
     singleGraphic = false;
     finishBeforeProgressing = false;
     timerLapsed = false;
-    // if (!logoPlayed) logoPlayed = true;
+    if (!logoPlayed) logoPlayed = true;
 
     // are we chaining folders?
     if (chainIndex > -1)
@@ -310,7 +304,6 @@ class GameFrame : public Usermod {
       {
         Serial.print(F("Chaining: "));
         Serial.println(chainDir);
-        // SD_ADAPTER.open(chainDir);
         chainIndex++;
       }
       else
@@ -318,7 +311,6 @@ class GameFrame : public Usermod {
         // chaining concluded
         chainIndex = -1;
         chainRootFolder[0] = '\0';
-        // SD_ADAPTER.open("/");
       }
     }
 
@@ -329,7 +321,6 @@ class GameFrame : public Usermod {
       Serial.println(nextFolder);
       if (file_onSD(nextFolder))
       {
-        // SD_ADAPTER.open(nextFolder);
         strcpy_P(curFolder, nextFolder);
       }
       else
@@ -355,6 +346,7 @@ class GameFrame : public Usermod {
           targetFolder = targetFolder + 2;
         }
 
+        // TODO: fix random folder selection
         Serial.print(F("Randomly advancing "));
         Serial.print(targetFolder);
         Serial.println(F(" folder(s)."));
@@ -410,7 +402,6 @@ class GameFrame : public Usermod {
         Serial.print(F("Opening Folder: "));
         Serial.println(entry.name());
 
-        // SD_ADAPTER.open(entry.name());
         strcpy_P(curFolder, entry.name());
         entry.close();
         break;
@@ -432,7 +423,6 @@ class GameFrame : public Usermod {
       Serial.print(F("Chaining detected: "));
       Serial.println(folder);
       memcpy(chainRootFolder, folder, 8);
-      // SD_ADAPTER.open(chainDir);
       chainIndex = 1;
     }
     
@@ -711,7 +701,7 @@ class GameFrame : public Usermod {
       {
         Serial.print(F("File size: ")); Serial.println(read32(myFile));
       }
-      else (void)read32(myFile);
+      else { (void)read32(myFile); }
       (void)read32(myFile); // Read & ignore creator bytes
       bmpImageoffset = read32(myFile); // Start of image data
       //    Serial.print(F("Image Offset: ")); Serial.println(bmpImageoffset, DEC);
@@ -1028,18 +1018,53 @@ class GameFrame : public Usermod {
     return result;
   }
 
+  template <size_t N>
+  String generateDDoptions(const dd_options_t (&options)[N], int selectedValue) {
+    int count = N;
+    String result = "";
+    for (int i = 0; i < count; i++) {
+      result += F("<option value=\"");
+      result += String(options[i].value);
+      if (options[i].value != selectedValue) {
+        result += F("\">");
+      }
+      else {
+        result += F("\" selected>");
+      }
+      result += options[i].name;
+      result += F("</option>");
+    }
+    return result;
+  }
+
+  template <size_t N>
+  void appendAddDropdown(const dd_options_t (&options)[N], String value) {
+    int count = N;
+    oappend(SET_F("dd=addDropdown('"));
+    oappend((const char*)FPSTR(_name));
+    oappend(SET_F("','"));
+    oappend(value.c_str());
+    oappend(SET_F("');\n"));
+    for (int i = 0; i < count; i++) {
+      oappend(SET_F("addOption(dd,'"));
+      oappend(options[i].name);
+      oappend(SET_F("',"));
+      oappendi(options[i].value);
+      oappend(SET_F(");"));
+    }
+  }
+
 
   public:
     void setup() {
-      // initSD();
       #ifdef SD_ADAPTER
         sdCard = (UsermodSdCard*) usermods.lookup(USERMOD_ID_SD_CARD);
       #endif
-      prevState = usermodActive;
       
-      initGameFrame();
-      nextImage();
-      drawFrame();
+      if(enabled) initGameFrame();
+
+      initDone = true;
+
     }
 
 
@@ -1065,21 +1090,19 @@ class GameFrame : public Usermod {
     */
   void loop() {
 
-    // TODO add strip.isMatrix() check including 16x16 dimension check
-      if(!usermodActive) return; 
+      if(!enabled) return;
+      if(!ready) return;
       if(sdCard == nullptr) return;
       if(!sdCard->configSdEnabled) return;
 
-      // periodically check if SD card is inserted
-      // if(!file_onSD("/") && millis() % 5000 == 0) {
-      //   if(SD.begin()) {
-      //     if(file_onSD("/")) {
-      //   initGameFrame();
-      //   nextImage();
-      //   drawFrame();
-      //     }
-      //   }
-      // }
+      if(!file_onSD("/00system")) {
+        enabled = false;
+        ready = false;
+        SD_ADAPTER.end();
+        DEBUG_PRINTLN(F("SD card was removed!"));
+        return;
+      }
+
 
       currentSecond = second(localTime);
       // currently playing images?
@@ -1144,12 +1167,6 @@ class GameFrame : public Usermod {
           // showClock();
         }
       }
-
-      if(usermodActive != prevState) {
-        updateState();
-        // serializeConfig();
-        prevState = usermodActive;
-      }
     }
 
     /**
@@ -1159,48 +1176,53 @@ class GameFrame : public Usermod {
    */
   void addToJsonInfo(JsonObject &root)
   {
-    //this code adds "u":{"GameFrame":uiDomString} to the info object
-    // the value contains a button to toggle gameframe activation
     JsonObject user = root["u"];
-    if (user.isNull())
-      user = root.createNestedObject("u");
+    if (user.isNull()) user = root.createNestedObject("u");
 
-    JsonArray gameframeArr = user.createNestedArray("GameFrame"); //name
-    String uiDomString = "<button class=\"btn infobtn\" onclick=\"requestJson({GameFrameActive:";
-    String str_gameframe_state;
-
-    // wrapper to flip through all modes
-    if(usermodActive) {
-      uiDomString += "0"; str_gameframe_state = "Enabled"; } // uiDomString += "x" holds next mode (added to onclick listener)
-    else {
-      uiDomString += "1"; str_gameframe_state = "Disabled"; }
-
-    uiDomString += "});return false;\">";
-    uiDomString += str_gameframe_state;
-    uiDomString += "</button>";
-    gameframeArr.add(uiDomString);
+    JsonArray infoArr = user.createNestedArray(FPSTR(_name)); //name
+    
+    String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
+    uiDomString += FPSTR(_name);
+    uiDomString += F(":{");
+    uiDomString += FPSTR(_enabled);
+    uiDomString += enabled ? F(":false}});\">") : F(":true}});\">");
+    uiDomString += F("<i class=\"icons");
+    uiDomString += enabled ? F(" on") : F(" off");
+    uiDomString += F("\">&#xe08f;</i>");
+    uiDomString += F("</button>");
+    infoArr.add(uiDomString);
 
     // Animation Control butttons 
-    // TODO: make it more appealing
-    if(usermodActive) {
+    if(enabled) {
 
       JsonArray animationSettingsArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
 
       // playMode 0 = sequential, 1 = random, 2 = pause animation
-      String animationDomString = F("<select class=\"btn\" onchange=\"requestJson({playMode:event.target.value});return false;\">");
+      String animationDomString = F("<select onchange=\"requestJson({");
+      animationDomString += FPSTR(_name);
+      animationDomString += F(":{");
+      animationDomString += FPSTR(_playMode);
+      animationDomString += F(":Number(event.target.value)}});return false;\">");
       animationDomString += generateDDoptions(playModes, playMode);
       animationDomString += F("</select>");
 
       // cycleTimeSettings button
-      animationDomString += F("<select class=\"btn\" onchange=\"requestJson({cycleTimeSetting:event.target.value});return false;\">");
+      animationDomString += F("<select onchange=\"requestJson({");
+      animationDomString += FPSTR(_name);
+      animationDomString += F(":{");
+      animationDomString += FPSTR(_cycleTimeSetting);
+      animationDomString += F(":Number(event.target.value)}});return false;\">");
       animationDomString += generateDDoptions(cycleTimes, cycleTimeSetting);
       animationDomString += F("</select>");
 
       // NextImage trigger button
-      animationDomString += "<button class=\"btn infobtn\" onclick=\"requestJson({NextImage:";
-      animationDomString += "1});return false;\">";
-      animationDomString += "Next Animation";
-      animationDomString += "</button>";
+      animationDomString += F("<button class=\"btn infobtn\" onclick=\"requestJson({");
+      animationDomString += FPSTR(_name);
+      animationDomString += F(":{");
+      animationDomString += FPSTR(_nextImage);
+      animationDomString += F(":1}});return false;\">");
+      animationDomString += F("Next Animation");
+      animationDomString += F("</button>");
       animationSettingsArr.add(animationDomString);
     }
 
@@ -1208,58 +1230,67 @@ class GameFrame : public Usermod {
 
     JsonArray sd1Arr = user.createNestedArray("SD status"); //name
     // show SD init status
-    uiDomString = file_onSD("/") ? "SD card present" : "no SD card";
+    uiDomString = file_onSD("/00system") ? "SD card present" : "no SD card";
 
     uiDomString += "</td></tr>";
     sd1Arr.add(uiDomString);
   }
 
-    /**
-   * addToJsonState() can be used to add custom entries to the /json/state part of the JSON API (state object).
-   * Values in the state object may be modified by connected clients
-   * Add "GameFrameActive" to json state. This can be used to flip through all modes.
-   */
+  /*
+    * addToJsonInfo() can be used to add custom entries to the /json/info part of the JSON API.
+    * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
+    * Below it is shown how this could be used for e.g. a light sensor
+    */
   void addToJsonState(JsonObject &root)
   {
-    root["GameFrameActive"] = usermodActive;
-    root["NextImage"] = 0;
-    root["playMode"] = playMode;
-    root["cycleTimeSetting"] = cycleTimeSetting;
+    if (!initDone) return;  // prevent crash on boot applyPreset()
+    JsonObject usermod = root[FPSTR(_name)];
+    if (usermod.isNull()) {
+      usermod = root.createNestedObject(FPSTR(_name));
+    }
+
+    usermod["on"] = enabled;
+    usermod[FPSTR(_playMode)] = playMode;
+    usermod[FPSTR(_cycleTimeSetting)] = cycleTimeSetting;
   }
 
-  /**
-   * readFromJsonState() can be used to receive data clients send to the /json/state part of the JSON API (state object).
-   * Values in the state object may be modified by connected clients
-   * Add "GameFrameActive" to json state. This can be used to flip through all modes.
-   */
-  void readFromJsonState(JsonObject &root)
+  /*
+    * readFromJsonState() can be used to receive data clients send to the /json/state part of the JSON API (state object).
+    * Values in the state object may be modified by connected clients
+    */
+  void readFromJsonState(JsonObject& root)
   {
-    if (root["GameFrameActive"] != nullptr)
-    {
-      usermodActive = root["GameFrameActive"];
-      // updateConfig = usermodActive;
-    }
+    if (!initDone) return;  // prevent crash on boot applyPreset()
+    bool prevEnabled = enabled;
+    JsonObject usermod = root[FPSTR(_name)];
+    if (!usermod.isNull()) {
 
-    if (root["NextImage"] != nullptr)
-    {
-      if(root["NextImage"]) {
-        nextImage();
-        drawFrame();
-        root["NextImage"] = 0;
+      if (usermod[FPSTR(_enabled)].is<bool>()) {
+        enabled = usermod[FPSTR(_enabled)].as<bool>();
+        if (enabled) initGameFrame();
       }
-    }
 
-    if (root["playMode"] != nullptr)
-    {
-      playMode = root["playMode"];
-    }
-
-    if (root["cycleTimeSetting"] != nullptr)
-    {
-      if(cycleTimeSetting != root["cycleTimeSetting"]) {
-        cycleTimeSetting = root["cycleTimeSetting"];
-        setCycleTime();
+      if (usermod[FPSTR(_nextImage)].is<int>()) {
+        int nextImageValue = usermod[FPSTR(_nextImage)].as<int>();
+        if (nextImageValue > 0) {
+          nextImage();
+          drawFrame();
+          usermod[FPSTR(_nextImage)] = 0; // reset NextImage flag
+        }
       }
+
+      if (usermod[FPSTR(_playMode)].is<int>()) {
+        playMode = usermod[FPSTR(_playMode)].as<int>();
+      }
+
+      if (usermod[FPSTR(_cycleTimeSetting)].is<int>()) {
+        int newCycleTimeSetting = usermod[FPSTR(_cycleTimeSetting)].as<int>();
+        if (newCycleTimeSetting != cycleTimeSetting) {
+          cycleTimeSetting = newCycleTimeSetting;
+          setCycleTime();
+        }
+      }
+
     }
   }
 
@@ -1300,11 +1331,11 @@ class GameFrame : public Usermod {
     */
   void addToConfig(JsonObject& root)
   {
-    JsonObject top = root.createNestedObject("GameFrame");
-
-    top["GameFrameActive"] = usermodActive;
-    top["playMode"] = playMode;
-    top["cycleTimeSetting"] = cycleTimeSetting;
+    JsonObject top = root.createNestedObject(FPSTR(_name));
+    top[FPSTR(_enabled)] = enabled;
+    
+    top[FPSTR(_playMode)] = playMode;
+    top[FPSTR(_cycleTimeSetting)] = cycleTimeSetting;
   }
 
  
@@ -1328,18 +1359,26 @@ class GameFrame : public Usermod {
     // default settings values could be set here (or below using the 3-argument getJsonValue()) instead of in the class definition or constructor
     // setting them inside readFromConfig() is slightly more robust, handling the rare but plausible use case of single value being missing after boot (e.g. if the cfg.json was manually edited and a value was removed)
 
-    JsonObject top = root["GameFrame"];
+    JsonObject top = root[FPSTR(_name)];
 
     bool configComplete = !top.isNull();
 
-    configComplete &= getJsonValue(top["GameFrameActive"], usermodActive);
-    configComplete &= getJsonValue(top["playMode"], playMode);
-    configComplete &= getJsonValue(top["cycleTimeSetting"], cycleTimeSetting);
-
-    // usermodActive = 0;
-    // updateConfig = usermodActive;
+    configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
+    configComplete &= getJsonValue(top[FPSTR(_playMode)], playMode);
+    configComplete &= getJsonValue(top[FPSTR(_cycleTimeSetting)], cycleTimeSetting);
 
     return configComplete;
+  }
+
+  /*
+    * appendConfigData() is called when user enters usermod settings page
+    * it may add additional metadata for certain entry fields (adding drop down is possible)
+    * be careful not to add too much as oappend() buffer is limited to 3k
+    */
+  void appendConfigData()
+  {
+    appendAddDropdown(playModes, FPSTR(_playMode));
+    appendAddDropdown(cycleTimes, FPSTR(_cycleTimeSetting));
   }
 
 
@@ -1350,19 +1389,14 @@ class GameFrame : public Usermod {
     */
   void handleOverlayDraw()
   {
-    //strip.setPixelColor(0, RGBW32(0,0,0,0)) // set the first pixel to black
-    
-    // check if usermod is active
-    if (usermodActive)
-    {
-      // loop over all leds
-      for (int x = 0; x < 256; x++)
-      {
-        strip.setPixelColor(x, matrix[x]);
-      }
-      showOnce = false;
-    }
+    if(!enabled) return;
 
+    // loop over all leds
+    for (int x = 0; x < 256; x++)
+    {
+      strip.setPixelColor(x, matrix[x]);
+    }
+    showOnce = false;
   }
 
   
@@ -1378,3 +1412,10 @@ class GameFrame : public Usermod {
   //More methods can be added in the future, this example will then be extended.
   //Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
 };
+
+// strings to reduce flash memory usage (used more than twice)
+const char GameFrame::_name[]       PROGMEM = "GameFrame";
+const char GameFrame::_enabled[]    PROGMEM = "enabled";
+const char GameFrame::_nextImage[]  PROGMEM = "next";
+const char GameFrame::_playMode[]   PROGMEM = "pm";
+const char GameFrame::_cycleTimeSetting[] PROGMEM = "cts";
