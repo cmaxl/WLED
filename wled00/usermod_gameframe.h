@@ -1377,8 +1377,8 @@ class GameFrame : public Usermod {
     */
   void appendConfigData()
   {
-    appendAddDropdown(playModes, FPSTR(_playMode));
-    appendAddDropdown(cycleTimes, FPSTR(_cycleTimeSetting));
+    appendAddDropdown(playModes, "playMode");
+    appendAddDropdown(cycleTimes, "cycleTimeSetting");
   }
 
 
