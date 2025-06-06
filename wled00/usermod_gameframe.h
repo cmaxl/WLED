@@ -474,11 +474,10 @@ class GameFrame : public Usermod {
 
       // test for single frame
 
-      char tmp_0[6];
-      char tmp_1[6];
-      strcpy_P(tmp_0, PSTR("0.BMP"));
-      strcpy_P(tmp_1, PSTR("1.BMP"));
-      if (file_onSD(tmp_0) && (!file_onSD(tmp_1)))
+      char tmp_1[32];
+      snprintf(tmp_1, sizeof(tmp_1), "%s/%s", curFolder, PSTR("1.BMP"));
+
+      if (file_onSD(filename) && (!file_onSD(tmp_1)))
       {
         singleGraphic = true;
         // check for pan settings
