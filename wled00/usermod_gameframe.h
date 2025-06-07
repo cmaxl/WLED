@@ -150,7 +150,7 @@ class GameFrame : public Usermod {
 
   void clearStripBuffer()
   {
-    strip.fill(0);
+    memset(matrix, 0, sizeof(matrix));
   }
 
   void closeMyFile()
