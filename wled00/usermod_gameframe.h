@@ -42,6 +42,7 @@ class GameFrame : public Usermod {
       enabled = false,
       initDone = false,
       ready = false,
+      sdMounted = false,
       updateConfig = false,
       showOnce = false,
       logoPlayed = false, // plays logo animation correctly reardless of playMode
@@ -108,6 +109,7 @@ class GameFrame : public Usermod {
     static const char _nextImage[];
     static const char _playMode[];
     static const char _cycleTimeSetting[];
+    static const char _mountSD[];
   
   uint8_t dim8_jer( uint8_t x )
   {
@@ -162,10 +164,80 @@ class GameFrame : public Usermod {
     }
   }
 
-  void initGameFrame() {
+  void yellowDot(byte x, byte y)
+  {
+    matrix[getIndex(x, y)] = CRGB(255, 255, 0);
+  }
 
-    DEBUG_PRINTLN(F("GameFrame: initGameFrame()"));
+  void drawSDError() {
 
+    clearStripBuffer();
+
+    // red bars
+    for (int index = 64; index < 80; index++)
+    {
+      matrix[index] = CRGB(255, 0, 0);
+    }
+    for (int index = 80; index < 192; index++)
+    {
+      matrix[index] = CRGB(0, 0, 0);
+    }
+    for (int index = 192; index < 208; index++)
+    {
+      matrix[index] = CRGB(255, 0, 0);
+    }
+    // S
+    yellowDot(7, 6);
+    yellowDot(6, 6);
+    yellowDot(5, 6);
+    yellowDot(4, 7);
+    yellowDot(5, 8);
+    yellowDot(6, 8);
+    yellowDot(7, 9);
+    yellowDot(6, 10);
+    yellowDot(5, 10);
+    yellowDot(4, 10);
+
+    // D
+    yellowDot(9, 6);
+    yellowDot(10, 6);
+    yellowDot(11, 7);
+    yellowDot(11, 8);
+    yellowDot(11, 9);
+    yellowDot(10, 10);
+    yellowDot(9, 10);
+    yellowDot(9, 7);
+    yellowDot(9, 8);
+    yellowDot(9, 9);
+
+  }
+
+  void mountSD() {
+    if(!sdMounted) {
+      if(sdCard != nullptr) {
+        sdCard->setup();
+        if (SD_ADAPTER.cardType() == CARD_NONE) {
+          DEBUG_PRINTLN(F("GameFrame: no SD card detected!"));
+          drawSDError();
+          return;
+        }
+        DEBUG_PRINTLN(F("GameFrame: SD card mounted"));
+        sdMounted = file_onSD("/");
+      }
+    }
+  }
+
+  void unmountSD() {
+    if(sdMounted) {
+      DEBUG_PRINTLN(F("GameFrame: Unmounting SD card"));
+      SD_ADAPTER.end();
+      sdMounted = false;
+      deinitGameFrame();
+      drawSDError();
+    }
+  }
+
+  void deinitGameFrame() {
     // reset variables
     ready = false;
     logoPlayed = false;
@@ -180,18 +252,23 @@ class GameFrame : public Usermod {
     folderIndex = 0;
     chainIndex = -1;
     numFolders = 0;
+    curFolder[0] = '\0';
+    nextFolder[0] = '\0';
+  }
 
+  void initGameFrame() {
 
-    if (SD_ADAPTER.cardType() == CARD_NONE) {
-      sdCard->setup();
-      if (SD_ADAPTER.cardType() == CARD_NONE) {
-        DEBUG_PRINTLN(F("GameFrame: no SD card detected!"));
-        return;
-      }
-    }
+    DEBUG_PRINTLN(F("GameFrame: initGameFrame()"));
+
+    deinitGameFrame();
+
+    mountSD();
+
+    if (!sdMounted) return;
 
     if(!file_onSD("/00system")) {
       DEBUG_PRINTLN(F("GameFrame: not a valid gameframe SD card!"));
+      drawSDError();
       return;
     }
 
@@ -1090,18 +1167,9 @@ class GameFrame : public Usermod {
   void loop() {
 
       if(!enabled) return;
-      if(!ready) return;
       if(sdCard == nullptr) return;
       if(!sdCard->configSdEnabled) return;
-
-      if(!file_onSD("/00system")) {
-        enabled = false;
-        ready = false;
-        SD_ADAPTER.end();
-        DEBUG_PRINTLN(F("SD card was removed!"));
-        return;
-      }
-
+      if(!ready) return;
 
       currentSecond = second(localTime);
       // currently playing images?
@@ -1227,11 +1295,17 @@ class GameFrame : public Usermod {
 
     // --- add SD card infos ---
 
-    JsonArray sd1Arr = user.createNestedArray("SD status"); //name
+    JsonArray sd1Arr = user.createNestedArray("SD card"); //name
     // show SD init status
-    uiDomString = file_onSD("/00system") ? "SD card present" : "no SD card";
-
-    uiDomString += "</td></tr>";
+    uiDomString = F("<button class=\"btn infobtn\" onclick=\"requestJson({");
+    uiDomString += FPSTR(_name);
+    uiDomString += F(":{");
+    uiDomString += FPSTR(_mountSD);
+    uiDomString += F(":");
+    uiDomString += sdMounted ? F("0") : F("1");
+    uiDomString += F("}});return false;\">");
+    uiDomString += sdMounted ? F("unmount") : F("mount");
+    uiDomString += F("</button>");
     sd1Arr.add(uiDomString);
   }
 
@@ -1288,6 +1362,12 @@ class GameFrame : public Usermod {
           cycleTimeSetting = newCycleTimeSetting;
           setCycleTime();
         }
+      }
+
+      if (usermod[FPSTR(_mountSD)].is<int>()) {
+        int mountSDValue = usermod[FPSTR(_mountSD)].as<int>();
+        if (mountSDValue) initGameFrame();
+        else unmountSD();
       }
 
     }
@@ -1418,3 +1498,4 @@ const char GameFrame::_enabled[]    PROGMEM = "enabled";
 const char GameFrame::_nextImage[]  PROGMEM = "next";
 const char GameFrame::_playMode[]   PROGMEM = "pm";
 const char GameFrame::_cycleTimeSetting[] PROGMEM = "cts";
+const char GameFrame::_mountSD[] PROGMEM = "sd";
