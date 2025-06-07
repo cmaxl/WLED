@@ -1274,7 +1274,7 @@ class GameFrame : public Usermod {
       JsonArray animationSettingsArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
 
       // playMode 0 = sequential, 1 = random, 2 = pause animation
-      String animationDomString = F("<select onchange=\"requestJson({");
+      String animationDomString = F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
       animationDomString += FPSTR(_name);
       animationDomString += F(":{");
       animationDomString += FPSTR(_playMode);
@@ -1283,7 +1283,7 @@ class GameFrame : public Usermod {
       animationDomString += F("</select>");
 
       // cycleTimeSettings button
-      animationDomString += F("<select onchange=\"requestJson({");
+      animationDomString += F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
       animationDomString += FPSTR(_name);
       animationDomString += F(":{");
       animationDomString += FPSTR(_cycleTimeSetting);
