@@ -210,6 +210,8 @@ class GameFrame : public Usermod {
     yellowDot(9, 8);
     yellowDot(9, 9);
 
+    updateInterfaces(CALL_MODE_WS_SEND);
+
   }
 
   void mountSD() {
@@ -254,6 +256,8 @@ class GameFrame : public Usermod {
     numFolders = 0;
     curFolder[0] = '\0';
     nextFolder[0] = '\0';
+
+    updateInterfaces(CALL_MODE_WS_SEND);
   }
 
   void initGameFrame() {
@@ -282,10 +286,12 @@ class GameFrame : public Usermod {
       File root = SD_ADAPTER.open("/");
       if (!root) {
         DEBUG_PRINTLN("Failed to open root directory.");
+        updateInterfaces(CALL_MODE_WS_SEND);
         return;
       }
       if (!root.isDirectory()) {
         DEBUG_PRINTLN("Root is not a directory.");
+        updateInterfaces(CALL_MODE_WS_SEND);
         return;
       }
 
@@ -310,6 +316,7 @@ class GameFrame : public Usermod {
     drawFrame();
 
     ready = true;
+    updateInterfaces(CALL_MODE_WS_SEND);
   }
 
   void setCycleTime()
@@ -572,6 +579,8 @@ class GameFrame : public Usermod {
       Serial.println(F("Empty folder!"));
       nextImage();
     }
+    
+    updateInterfaces(CALL_MODE_WS_SEND);
   }
 
   void drawFrame()
