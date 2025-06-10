@@ -424,7 +424,7 @@ class GameFrame : public Usermod {
         int targetFolder = random(0, numFolders-2);
 
         Serial.print(F("Randomly advancing "));
-        Serial.print(targetFolder);
+        Serial.print(targetFolder+1);
         Serial.println(F(" folder(s)."));
         
         folderIndex = (folderIndex + targetFolder) % (numFolders-1);
