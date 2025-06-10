@@ -11,70 +11,67 @@
 
 #define BUFFPIXEL 16 // number of pixels to buffer when reading BMP files
 
-struct dd_options_t {
-  const int value; // value to be set
+struct dd_options_t
+{
+  const int value;     // value to be set
   const char name[21]; // name to be shown in dropdown
 };
 
 static dd_options_t displayModes PROGMEM[] = {
-  {0, "Slideshow"},
-  {1, "Clock"}
-};
+    {0, "Slideshow"},
+    {1, "Clock"}};
 
 static dd_options_t playModes PROGMEM[] = {
-  {0, "Sequential"},
-  {1, "Random"},
-  {2, "Pause"}
-};
+    {0, "Sequential"},
+    {1, "Random"},
+    {2, "Pause"}};
 
 static dd_options_t cycleTimes PROGMEM[] = {
-  {1, "10 secs"},
-  {2, "30 secs"},
-  {3, "1 min"},
-  {4, "2 min"},
-  {5, "5 min"},
-  {6, "10 min"},
-  {7, "30 min"},
-  {8, "Infinite"}
-};
+    {1, "10 secs"},
+    {2, "30 secs"},
+    {3, "1 min"},
+    {4, "2 min"},
+    {5, "5 min"},
+    {6, "10 min"},
+    {7, "30 min"},
+    {8, "Infinite"}};
 
 static dd_options_t clockDesigns PROGMEM[] = {
-  {1, "Rainbow"},
-  {2, "White"},
-  {3, "Blueface"},
-  {4, "Tick Mark"},
-  {5, "Binary"},
-  {6, "Binary v2"},
-  {7, "TIX"}
-};
+    {1, "Rainbow"},
+    {2, "White"},
+    {3, "Blueface"},
+    {4, "Tick Mark"},
+    {5, "Binary"},
+    {6, "Binary v2"},
+    {7, "TIX"}};
 
-class GameFrame : public Usermod {
-  public:
-
-  private:
-    File myFile;
-    bool
+class GameFrame : public Usermod
+{
+public:
+private:
+  File myFile;
+  bool
       enabled = false,
       initDone = false,
       ready = false,
       sdMounted = false,
       updateConfig = false,
-      logoPlayed = false, // plays logo animation correctly reardless of playMode
-      folderLoop = true, // animation looping
-      moveLoop = false, // translation/pan looping
-      panoff = true, // movement scrolls off screen
-      singleGraphic = false, // single BMP file or multiple BMP files
-      abortImage = false, // image is corrupt; abort, retry, fail?
-      clockShown = false, // clock mode?
+      logoPlayed = false,              // plays logo animation correctly reardless of playMode
+      folderLoop = true,               // animation looping
+      moveLoop = false,                // translation/pan looping
+      panoff = true,                   // movement scrolls off screen
+      singleGraphic = false,           // single BMP file or multiple BMP files
+      abortImage = false,              // image is corrupt; abort, retry, fail?
+      clockShown = false,              // clock mode?
       finishBeforeProgressing = false, // finish the animation before progressing?
       enableSecondHand = false,
       clockAnimationActive = false, // currently showing clock anim
-      timerLapsed = false; // timer lapsed, queue next animation when current one finishes
+      timerLapsed = false;          // timer lapsed, queue next animation when current one finishes
 
-    byte
-      displayMode = 1, // 0 = slideshow, 1 = clock
-      playMode = 0, // 0 = sequential, 1 = random, 2 = pause animations
-      cycleTimeSetting = 2, // time before next animation: 1=10 secs, 2=30 secs, 3=1 min... 8=infinity
+  byte
+      displayMode = 1,          // 0 = slideshow, 1 = clock
+      playMode = 0,             // 0 = sequential, 1 = random, 2 = pause animations
+      cycleTimeSetting = 2,     // time before next animation: 1=10 secs, 2=30 secs, 3=1 min... 8=infinity
       clockAnimationLength = 5, // seconds to play clock animations
       clockDesign = 1,
       prevClockDesign = 1,
@@ -86,67 +83,68 @@ class GameFrame : public Usermod {
       currentMinute = 0,
       currentSecond = 255; // current second
 
-    int
+  int
       secondCounter = 0, // counts up every second
-      fileIndex = 0, // current frame
-      chainIndex = -1, // for chaining multiple folders
-      numFolders = 0, // number of folders on sd in /animations
-      cycleTime = 30, // seconds to wait before progressing to next folder
-      offsetSpeedX = 0, // number of pixels to translate each frame
-      offsetSpeedY = 0, // number of pixels to translate each frame
-      offsetX = 0, // for translating images x pixels
-      offsetY = 0, // for translating images y pixels
+      fileIndex = 0,     // current frame
+      chainIndex = -1,   // for chaining multiple folders
+      numFolders = 0,    // number of folders on sd in /animations
+      cycleTime = 30,    // seconds to wait before progressing to next folder
+      offsetSpeedX = 0,  // number of pixels to translate each frame
+      offsetSpeedY = 0,  // number of pixels to translate each frame
+      offsetX = 0,       // for translating images x pixels
+      offsetY = 0,       // for translating images y pixels
       imageWidth = 0,
       imageHeight = 0;
 
-    int16_t 
+  int16_t
       folderIndex = 0; // current folder
 
-    unsigned long
-      lastTime = 0, // used to calculate draw time
-      drawTime = 0, // time to read from sd
+  unsigned long
+      lastTime = 0,   // used to calculate draw time
+      drawTime = 0,   // time to read from sd
       holdTime = 200, // millisecods to hold each .bmp frame
-      swapTime = 0, // system time to advance to next frame
-      baseTime = 0; // time we enter menu
+      swapTime = 0,   // system time to advance to next frame
+      baseTime = 0;   // time we enter menu
 
-    char
+  char
       chainRootFolder[9], // chain game
-      nextFolder[21], // dictated next animation
-      curFolder[21], // current animation
+      nextFolder[21],     // dictated next animation
+      curFolder[21],      // current animation
       clockBmp[30] = "/00system/digits.BMP";
 
-      CRGB
-        matrix[256] = {0},
-        secondHandColor = 0; // color grabbed from digits.bmp for second hand;
+  CRGB
+      matrix[256] = {0},
+      secondHandColor = 0; // color grabbed from digits.bmp for second hand;
 
-    #ifdef SD_ADAPTER
-      UsermodSdCard *sdCard;
-    #else
-      void* sdCard = nullptr;
-    #endif
+#ifdef SD_ADAPTER
+  UsermodSdCard *sdCard;
+#else
+  void *sdCard = nullptr;
+#endif
 
-    // strings to reduce flash memory usage (used more than twice)
-    static const char 
-      _name[], 
+  // strings to reduce flash memory usage (used more than twice)
+  static const char
+      _name[],
       _enabled[],
       _nextImage[],
       _displayMode[],
       _playMode[],
       _cycleTimeSetting[],
       _mountSD[],
-      _enableSecondHand[], 
-      _clockAnimationLength[], 
+      _enableSecondHand[],
+      _clockAnimationLength[],
       _clockDesign[];
-  
-  uint8_t dim8_jer( uint8_t x )
+
+  uint8_t dim8_jer(uint8_t x)
   {
-    return ((uint16_t)x * (uint16_t)(x) ) >> 8;
+    return ((uint16_t)x * (uint16_t)(x)) >> 8;
   }
 
   byte getIndex(byte x, byte y)
   {
     byte index;
-    if(strip.isMatrix){
+    if (strip.isMatrix)
+    {
       if (y == 0)
       {
         index = x;
@@ -159,8 +157,9 @@ class GameFrame : public Usermod {
       {
         index = y * 16 + x;
       }
-    } 
-    else {
+    }
+    else
+    {
       if (y == 0)
       {
         index = x;
@@ -184,9 +183,10 @@ class GameFrame : public Usermod {
 
   void closeMyFile()
   {
-    if (myFile) 
+    if (myFile)
     {
-      if (GF_DEBUG_FILES) DEBUG_PRINTLN(F("Closing Image..."));
+      if (GF_DEBUG_FILES)
+        DEBUG_PRINTLN(F("Closing Image..."));
       myFile.close();
     }
   }
@@ -196,7 +196,8 @@ class GameFrame : public Usermod {
     matrix[getIndex(x, y)] = CRGB(255, 255, 0);
   }
 
-  void drawSDError() {
+  void drawSDError()
+  {
 
     clearStripBuffer();
 
@@ -238,14 +239,17 @@ class GameFrame : public Usermod {
     yellowDot(9, 9);
 
     updateInterfaces(CALL_MODE_WS_SEND);
-
   }
 
-  void mountSD() {
-    if(!sdMounted) {
-      if(sdCard != nullptr) {
+  void mountSD()
+  {
+    if (!sdMounted)
+    {
+      if (sdCard != nullptr)
+      {
         sdCard->setup();
-        if (SD_ADAPTER.cardType() == CARD_NONE) {
+        if (SD_ADAPTER.cardType() == CARD_NONE)
+        {
           DEBUG_PRINTLN(F("GameFrame: no SD card detected!"));
           drawSDError();
           return;
@@ -256,8 +260,10 @@ class GameFrame : public Usermod {
     }
   }
 
-  void unmountSD() {
-    if(sdMounted) {
+  void unmountSD()
+  {
+    if (sdMounted)
+    {
       DEBUG_PRINTLN(F("GameFrame: Unmounting SD card"));
       SD_ADAPTER.end();
       sdMounted = false;
@@ -266,7 +272,8 @@ class GameFrame : public Usermod {
     }
   }
 
-  void deinitGameFrame() {
+  void deinitGameFrame()
+  {
     // reset variables
     ready = false;
     logoPlayed = false;
@@ -287,7 +294,8 @@ class GameFrame : public Usermod {
     updateInterfaces(CALL_MODE_WS_SEND);
   }
 
-  void initGameFrame() {
+  void initGameFrame()
+  {
 
     DEBUG_PRINTLN(F("GameFrame: initGameFrame()"));
 
@@ -295,9 +303,11 @@ class GameFrame : public Usermod {
 
     mountSD();
 
-    if (!sdMounted) return;
+    if (!sdMounted)
+      return;
 
-    if(!file_onSD("/00system")) {
+    if (!file_onSD("/00system"))
+    {
       DEBUG_PRINTLN(F("GameFrame: not a valid gameframe SD card!"));
       drawSDError();
       return;
@@ -311,20 +321,24 @@ class GameFrame : public Usermod {
     {
       numFolders = 0;
       File root = SD_ADAPTER.open("/");
-      if (!root) {
+      if (!root)
+      {
         DEBUG_PRINTLN("Failed to open root directory.");
         updateInterfaces(CALL_MODE_WS_SEND);
         return;
       }
-      if (!root.isDirectory()) {
+      if (!root.isDirectory())
+      {
         DEBUG_PRINTLN("Root is not a directory.");
         updateInterfaces(CALL_MODE_WS_SEND);
         return;
       }
 
       File file = root.openNextFile();
-      while (file) {
-        if (file.isDirectory()) {
+      while (file)
+      {
+        if (file.isDirectory())
+        {
           DEBUG_PRINTLN("---");
           numFolders++;
           DEBUG_PRINT("Folder: ");
@@ -339,7 +353,7 @@ class GameFrame : public Usermod {
 
     // play logo animation
     strcpy_P(curFolder, PSTR("/00system/logo"));
-    readIniFile(); 
+    readIniFile();
     drawFrame();
 
     ready = true;
@@ -389,7 +403,8 @@ class GameFrame : public Usermod {
     closeMyFile();
     boolean foundNewFolder = false;
     // reset secondCounter if not playing clock animations
-    if (!clockAnimationActive) secondCounter = 0;
+    if (!clockAnimationActive)
+      secondCounter = 0;
     baseTime = millis();
     holdTime = 0;
     char folder[9];
@@ -399,7 +414,8 @@ class GameFrame : public Usermod {
     singleGraphic = false;
     finishBeforeProgressing = false;
     timerLapsed = false;
-    if (!logoPlayed) logoPlayed = true;
+    if (!logoPlayed)
+      logoPlayed = true;
 
     // TODO remove chaining
     // are we chaining folders?
@@ -449,13 +465,13 @@ class GameFrame : public Usermod {
       // shuffle playback using random number
       if (playMode != 0) // check we're not in a sequential play mode
       {
-        int targetFolder = random(0, numFolders-2);
+        int targetFolder = random(0, numFolders - 2);
 
         Serial.print(F("Randomly advancing "));
-        Serial.print(targetFolder+1);
+        Serial.print(targetFolder + 1);
         Serial.println(F(" folder(s)."));
-        
-        folderIndex = (folderIndex + targetFolder) % (numFolders-1);
+
+        folderIndex = (folderIndex + targetFolder) % (numFolders - 1);
       }
 
       while (foundNewFolder == false)
@@ -465,25 +481,25 @@ class GameFrame : public Usermod {
         int currentIndex = 0;
 
         // TODO: catch if no sd card is inserted
-        if (folderIndex >= numFolders) {
+        if (folderIndex >= numFolders)
+        {
           Serial.println(F("folderIndex out of range!"));
           folderIndex = 0; // reset folder index
         }
-        
 
         while (entry)
         {
           if (currentIndex == folderIndex && entry.isDirectory())
           {
-        foundNewFolder = true;
-        Serial.print(F("Folder Index: "));
-        Serial.println(folderIndex);
-        Serial.print(F("Opening Folder: "));
-        Serial.println(entry.name());
+            foundNewFolder = true;
+            Serial.print(F("Folder Index: "));
+            Serial.println(folderIndex);
+            Serial.print(F("Opening Folder: "));
+            Serial.println(entry.name());
 
-        strcpy_P(curFolder, entry.name());
-        entry.close();
-        break;
+            strcpy_P(curFolder, entry.name());
+            entry.close();
+            break;
           }
           entry.close();
           entry = root.openNextFile(); // Move to the next file
@@ -504,7 +520,7 @@ class GameFrame : public Usermod {
       memcpy(chainRootFolder, folder, 8);
       chainIndex = 1;
     }
-    
+
     char filename[32];
     snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR("/0.BMP"));
     if (file_onSD(filename))
@@ -513,7 +529,7 @@ class GameFrame : public Usermod {
       Serial.print(curFolder);
       Serial.println(F("/config.ini"));
       readIniFile();
-      
+
       refreshImageDimensions(filename);
 
       Serial.print(F("Hold (in ms): "));
@@ -525,23 +541,31 @@ class GameFrame : public Usermod {
       {
         if (offsetSpeedX > 0)
         {
-          if (panoff == true) offsetX = (imageWidth * -1);
-          else offsetX = (imageWidth * -1 + 16);
+          if (panoff == true)
+            offsetX = (imageWidth * -1);
+          else
+            offsetX = (imageWidth * -1 + 16);
         }
         else if (offsetSpeedX < 0)
         {
-          if (panoff == true) offsetX = 16;
-          else offsetX = 0;
+          if (panoff == true)
+            offsetX = 16;
+          else
+            offsetX = 0;
         }
         if (offsetSpeedY > 0)
         {
-          if (panoff == true) offsetY = -16;
-          else offsetY = 0;
+          if (panoff == true)
+            offsetY = -16;
+          else
+            offsetY = 0;
         }
         else if (offsetSpeedY < 0)
         {
-          if (panoff == true) offsetY = imageHeight;
-          else offsetY = imageHeight - 16;
+          if (panoff == true)
+            offsetY = imageHeight;
+          else
+            offsetY = imageHeight - 16;
         }
       }
       // center image if animations are paused
@@ -574,7 +598,7 @@ class GameFrame : public Usermod {
       Serial.println(F("Empty folder!"));
       nextImage();
     }
-    
+
     updateInterfaces(CALL_MODE_WS_SEND);
   }
 
@@ -653,10 +677,12 @@ class GameFrame : public Usermod {
         fileIndex = 0;
         itoa(fileIndex, bmpFile, 10);
         strcat(bmpFile, PSTR(".BMP"));
-        if (finishBeforeProgressing && (offsetSpeedX != 0 || offsetSpeedY != 0)); // translating image - continue animating until moved off screen
+        if (finishBeforeProgressing && (offsetSpeedX != 0 || offsetSpeedY != 0))
+          ; // translating image - continue animating until moved off screen
         else if (folderLoop == false || timerLapsed == true)
         {
-          if (displayMode == 0) nextImage();
+          if (displayMode == 0)
+            nextImage();
           else if (displayMode == 1)
           {
             // just displayed logo, enter clock mode
@@ -667,31 +693,37 @@ class GameFrame : public Usermod {
       }
       snprintf(filename, sizeof(filename), "%s/%s", curFolder, bmpFile);
     }
-    else {
-      snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR( "/0.BMP"));
+    else
+    {
+      snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR("/0.BMP"));
     }
     bmpDraw(filename, 0, 0);
 
     // print draw time in milliseconds
     drawTime = millis() - lastTime;
     lastTime = millis();
-    if(GF_DEBUG_FILES) {
+    if (GF_DEBUG_FILES)
+    {
       Serial.print(F("ttd: "));
       Serial.print(drawTime);
       Serial.print(F("  "));
       Serial.println(holdTime);
     }
 
-    if (offsetSpeedX != 0) offsetX += offsetSpeedX;
-    if (offsetSpeedY != 0) offsetY += offsetSpeedY;
+    if (offsetSpeedX != 0)
+      offsetX += offsetSpeedX;
+    if (offsetSpeedY != 0)
+      offsetY += offsetSpeedY;
   }
 
-  void refreshImageDimensions(char *filename) {
+  void refreshImageDimensions(char *filename)
+  {
 
-    const uint8_t  gridWidth = 16;
-    const uint8_t  gridHeight = 16;
+    const uint8_t gridWidth = 16;
+    const uint8_t gridHeight = 16;
 
-    if ((0 >= gridWidth) || (0 >= gridHeight)) {
+    if ((0 >= gridWidth) || (0 >= gridHeight))
+    {
       Serial.print(F("Abort."));
       return;
     }
@@ -699,22 +731,25 @@ class GameFrame : public Usermod {
     // storing dimensions for image
     // Open requested file on SD card using ESP32 SD library
     myFile = SD_ADAPTER.open(filename, FILE_READ);
-    if (!myFile) {
+    if (!myFile)
+    {
       Serial.print(filename);
       Serial.println(F(" File open failed"));
       return;
     }
 
     // Parse BMP header
-    if (read16(myFile) == 0x4D42) { // BMP signature
+    if (read16(myFile) == 0x4D42)
+    {                       // BMP signature
       (void)read32(myFile); // Read & ignore file size
       (void)read32(myFile); // Read & ignore creator bytes
       (void)read32(myFile); // skip data
       // Read DIB header
       (void)read32(myFile); // Read & ignore Header size
-      imageWidth  = read32(myFile);
+      imageWidth = read32(myFile);
       imageHeight = read32(myFile);
-      if(GF_DEBUG_FILES){
+      if (GF_DEBUG_FILES)
+      {
         Serial.print(F("Image resolution: "));
         Serial.print(imageWidth);
         Serial.print(F("x"));
@@ -732,30 +767,33 @@ class GameFrame : public Usermod {
   // makes loading a little faster.  20 pixels seems a
   // good balance.
 
-  void bmpDraw(char *filename, uint8_t x, uint8_t y) {
+  void bmpDraw(char *filename, uint8_t x, uint8_t y)
+  {
 
-    int  bmpWidth, bmpHeight;   // W+H in pixels
-    uint8_t  bmpDepth;              // Bit depth (currently must be 24 or 32)
-    uint8_t  sdbuffer[3 * BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
-    uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
-    uint32_t bmpImageoffset;        // Start of image data in file
-    uint32_t  rowSize;               // Not always = bmpWidth; may have padding
-    boolean  goodBmp = false;       // Set to true on valid header parse
-    boolean  flip    = true;        // BMP is stored bottom-to-top
-    int  w, h, row, col;
-    uint8_t  r, g, b;
+    int bmpWidth, bmpHeight;            // W+H in pixels
+    uint8_t bmpDepth;                   // Bit depth (currently must be 24 or 32)
+    uint8_t sdbuffer[3 * BUFFPIXEL];    // pixel buffer (R+G+B per pixel)
+    uint8_t buffidx = sizeof(sdbuffer); // Current position in sdbuffer
+    uint32_t bmpImageoffset;            // Start of image data in file
+    uint32_t rowSize;                   // Not always = bmpWidth; may have padding
+    boolean goodBmp = false;            // Set to true on valid header parse
+    boolean flip = true;                // BMP is stored bottom-to-top
+    int w, h, row, col;
+    uint8_t r, g, b;
     uint32_t pos = 0;
-    const uint8_t  gridWidth = 16;
-    const uint8_t  gridHeight = 16;
+    const uint8_t gridWidth = 16;
+    const uint8_t gridHeight = 16;
 
-    if ((x >= gridWidth) || (y >= gridHeight)) {
+    if ((x >= gridWidth) || (y >= gridHeight))
+    {
       Serial.print(F("Abort."));
       return;
     }
 
     if (!myFile)
     {
-      if(GF_DEBUG_FILES) {
+      if (GF_DEBUG_FILES)
+      {
         Serial.println();
         Serial.print(F("Loading image '"));
         Serial.print(filename);
@@ -768,31 +806,40 @@ class GameFrame : public Usermod {
 
       // Open requested file on SD card
       myFile = SD_ADAPTER.open(filename, FILE_READ);
-      if (!myFile) {
+      if (!myFile)
+      {
         Serial.println(F("File open failed"));
         return;
       }
     }
-    else myFile.seek(0);
+    else
+      myFile.seek(0);
 
     // Parse BMP header
-    if (read16(myFile) == 0x4D42) { // BMP signature
+    if (read16(myFile) == 0x4D42)
+    { // BMP signature
       if (GF_DEBUG_FILES)
       {
-        Serial.print(F("File size: ")); Serial.println(read32(myFile));
+        Serial.print(F("File size: "));
+        Serial.println(read32(myFile));
       }
-      else { (void)read32(myFile); }
-      (void)read32(myFile); // Read & ignore creator bytes
+      else
+      {
+        (void)read32(myFile);
+      }
+      (void)read32(myFile);            // Read & ignore creator bytes
       bmpImageoffset = read32(myFile); // Start of image data
       //    Serial.print(F("Image Offset: ")); Serial.println(bmpImageoffset, DEC);
       // Read DIB header
       (void)read32(myFile); // Read & ignore Header size
-      bmpWidth  = read32(myFile);
+      bmpWidth = read32(myFile);
       bmpHeight = read32(myFile);
-      if (read16(myFile) == 1) { // # planes -- must be '1'
+      if (read16(myFile) == 1)
+      {                            // # planes -- must be '1'
         bmpDepth = read16(myFile); // bits per pixel
         //      Serial.print(F("Bit Depth: ")); Serial.println(bmpDepth);
-        if ((bmpDepth == 24 || bmpDepth == 32) && (read32(myFile) == 0)) { // 0 = uncompressed
+        if ((bmpDepth == 24 || bmpDepth == 32) && (read32(myFile) == 0))
+        {                 // 0 = uncompressed
           goodBmp = true; // Supported BMP format -- proceed!
           if (GF_DEBUG_FILES)
           {
@@ -809,15 +856,16 @@ class GameFrame : public Usermod {
           }
 
           // BMP rows are padded (if needed) to 4-byte boundary
-          rowSize = (bmpWidth * bmpDepth/8 + bmpDepth/8) & ~(bmpDepth/8); // 32-bit BMP support
+          rowSize = (bmpWidth * bmpDepth / 8 + bmpDepth / 8) & ~(bmpDepth / 8); // 32-bit BMP support
           //        Serial.print(F("Row size: "));
           //        Serial.println(rowSize);
 
           // If bmpHeight is negative, image is in top-down order.
           // This is not canon but has been observed in the wild.
-          if (bmpHeight < 0) {
+          if (bmpHeight < 0)
+          {
             bmpHeight = -bmpHeight;
-            flip      = false;
+            flip = false;
           }
 
           // initialize our pixel index
@@ -826,10 +874,13 @@ class GameFrame : public Usermod {
           // Crop area to be loaded
           w = bmpWidth;
           h = bmpHeight;
-          if ((x + w - 1) >= gridWidth)  w = gridWidth - x;
-          if ((y + h - 1) >= gridHeight) h = gridHeight - y;
+          if ((x + w - 1) >= gridWidth)
+            w = gridWidth - x;
+          if ((y + h - 1) >= gridHeight)
+            h = gridHeight - y;
 
-          for (row = 0; row < h; row++) { // For each scanline...
+          for (row = 0; row < h; row++)
+          { // For each scanline...
 
             // Seek to start of scan line.  It might seem labor-
             // intensive to be doing this on every line, but this
@@ -840,29 +891,33 @@ class GameFrame : public Usermod {
 
             if (flip) // Bitmap is stored bottom-to-top order (normal BMP)
               pos = (bmpImageoffset + (offsetX * -3) + (bmpHeight - 1 - (row + offsetY)) * rowSize);
-            else     // Bitmap is stored top-to-bottom
+            else // Bitmap is stored top-to-bottom
               pos = bmpImageoffset + row * rowSize;
-            if (myFile.position() != pos) { // Need seek?
+            if (myFile.position() != pos)
+            { // Need seek?
               myFile.seek(pos);
               buffidx = sizeof(sdbuffer); // Force buffer reload
             }
 
-            for (col = 0; col < w; col++) { // For each pixel...
+            for (col = 0; col < w; col++)
+            { // For each pixel...
               // Time to read more pixel data?
-              
+
               if (bmpDepth == 24)
               {
-                if (buffidx >= sizeof(sdbuffer)) { // Indeed
+                if (buffidx >= sizeof(sdbuffer))
+                { // Indeed
                   myFile.read(sdbuffer, sizeof(sdbuffer));
                   buffidx = 0; // Set index to beginning
                 }
               }
               else if (bmpDepth == 32)
               {
-                if (buffidx >= 3) { // 32-bit file compatibility forces buffer to 1 pixel at a time
-                  myFile.read(sdbuffer, 3); 
+                if (buffidx >= 3)
+                { // 32-bit file compatibility forces buffer to 1 pixel at a time
+                  myFile.read(sdbuffer, 3);
                   myFile.read(); // eat the alpha channel
-                  buffidx = 0; // Set index to beginning
+                  buffidx = 0;   // Set index to beginning
                 }
               }
 
@@ -901,7 +956,8 @@ class GameFrame : public Usermod {
                 matrix[getIndex(col, row)] = 0;
               }
               // all good
-              else matrix[getIndex(col + x, row)] = CRGB(r, g, b);
+              else
+                matrix[getIndex(col + x, row)] = CRGB(r, g, b);
               // paint pixel color
             } // end pixel
           } // end scanline
@@ -913,19 +969,24 @@ class GameFrame : public Usermod {
     {
       closeMyFile();
     }
-    if (!goodBmp) Serial.println(F("Format unrecognized"));
+    if (!goodBmp)
+      Serial.println(F("Format unrecognized"));
   }
 
-  void updateClockDesign() {
-    if(clockDesign != prevClockDesign) {
+  void updateClockDesign()
+  {
+    if (clockDesign != prevClockDesign)
+    {
 
       char filename[32];
       snprintf(filename, sizeof(filename), "%s%d%s", PSTR("/00system/digits_"), clockDesign, PSTR(".BMP"));
-      
-      if(file_onSD(filename)) {
+
+      if (file_onSD(filename))
+      {
         strcpy(clockBmp, filename);
       }
-      else {
+      else
+      {
         DEBUG_PRINT(F("GameFrame: clockface not available "));
         DEBUG_PRINTLN(filename);
         clockDesign = prevClockDesign;
@@ -947,15 +1008,18 @@ class GameFrame : public Usermod {
     holdTime = 0;
     fileIndex = 0;
     singleGraphic = true;
-    if (!logoPlayed) logoPlayed = true;
+    if (!logoPlayed)
+      logoPlayed = true;
 
     updateClockDesign();
 
     if (!enableSecondHand)
     {
       // 24 hour conversion
-      if (useAMPM && currentHour > 12) currentHour -= 12;
-      if (useAMPM && currentHour == 0) currentHour = 12;
+      if (useAMPM && currentHour > 12)
+        currentHour -= 12;
+      if (useAMPM && currentHour == 0)
+        currentHour = 12;
       drawDigitsAndShow();
     }
   }
@@ -981,8 +1045,10 @@ class GameFrame : public Usermod {
       lastSecond = currentSecond;
 
       // 24 hour conversion
-      if (useAMPM && currentHour > 12) currentHour -= 12;
-      if (useAMPM && currentHour == 0) currentHour = 12;
+      if (useAMPM && currentHour > 12)
+        currentHour -= 12;
+      if (useAMPM && currentHour == 0)
+        currentHour = 12;
 
       updateClockDesign();
 
@@ -991,7 +1057,8 @@ class GameFrame : public Usermod {
       {
         // offset second hand if required
         currentSecond = currentSecond + secondOffset;
-        if (currentSecond >= 60) currentSecond -= 60;
+        if (currentSecond >= 60)
+          currentSecond -= 60;
         storeSecondHandColor();
         drawDigits();
         secondHand();
@@ -1002,7 +1069,7 @@ class GameFrame : public Usermod {
         drawDigitsAndShow();
       }
 
-  //    debugClockDisplay();
+      //    debugClockDisplay();
 
       // show an animation
       if (cycleTime != -1 && clockAnimationLength > 0 && (secondsIntoHour() % cycleTime) == 0)
@@ -1054,7 +1121,8 @@ class GameFrame : public Usermod {
     {
       offsetY = singleDigit * 16;
     }
-    else offsetY = 160;
+    else
+      offsetY = 160;
     bmpDraw(clockBmp, 0, 0);
   }
 
@@ -1067,7 +1135,8 @@ class GameFrame : public Usermod {
     {
       singleDigit = numChar[1] - '0';
     }
-    else singleDigit = numChar[0] - '0';
+    else
+      singleDigit = numChar[0] - '0';
     offsetX = 0;
     offsetY = singleDigit * 16;
     bmpDraw(clockBmp, 3, 0);
@@ -1082,7 +1151,8 @@ class GameFrame : public Usermod {
     {
       singleDigit = numChar[0] - '0';
     }
-    else singleDigit = 0;
+    else
+      singleDigit = 0;
     offsetY = singleDigit * 16;
     bmpDraw(clockBmp, 8, 0);
   }
@@ -1096,7 +1166,8 @@ class GameFrame : public Usermod {
     {
       singleDigit = numChar[1] - '0';
     }
-    else singleDigit = numChar[0] - '0';
+    else
+      singleDigit = numChar[0] - '0';
     offsetY = singleDigit * 16;
     bmpDraw(clockBmp, 12, 0);
   }
@@ -1138,7 +1209,8 @@ class GameFrame : public Usermod {
     char filename[32];
     snprintf(filename, sizeof(filename), "%s/%s", curFolder, PSTR("/config.ini"));
     IniFile ini(filename);
-    if (!ini.open()) {
+    if (!ini.open())
+    {
       DEBUG_PRINT(filename);
       DEBUG_PRINTLN(F(" does not exist"));
       // Cannot do anything else
@@ -1150,7 +1222,8 @@ class GameFrame : public Usermod {
 
     // Check the file is valid. This can be used to warn if any lines
     // are longer than the buffer.
-    if (!ini.validate(buffer, bufferLen)) {
+    if (!ini.validate(buffer, bufferLen))
+    {
       DEBUG_PRINT(F("ini file "));
       DEBUG_PRINT(ini.getFilename());
       DEBUG_PRINT(F(" not valid: "));
@@ -1163,12 +1236,14 @@ class GameFrame : public Usermod {
     strcpy_P(entry, PSTR("hold"));
 
     // Fetch a value from a key which is present
-    if (ini.getValue(section, entry, buffer, bufferLen)) {
+    if (ini.getValue(section, entry, buffer, bufferLen))
+    {
       DEBUG_PRINT(F("hold value: "));
       DEBUG_PRINTLN(buffer);
       holdTime = atol(buffer);
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       holdTime = 200;
     }
@@ -1178,13 +1253,15 @@ class GameFrame : public Usermod {
     // Fetch a boolean value
     bool loopCheck;
     bool found = ini.getValue(section, entry, buffer, bufferLen, loopCheck);
-    if (found) {
+    if (found)
+    {
       DEBUG_PRINT(F("animation loop value: "));
       // Print value, converting boolean to a string
       DEBUG_PRINTLN(loopCheck ? F("TRUE") : F("FALSE"));
       folderLoop = loopCheck;
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       folderLoop = true;
     }
@@ -1194,13 +1271,15 @@ class GameFrame : public Usermod {
     // Fetch a boolean value
     bool finishCheck;
     bool found4 = ini.getValue(section, entry, buffer, bufferLen, finishCheck);
-    if (found4) {
+    if (found4)
+    {
       DEBUG_PRINT(F("finish value: "));
       // Print value, converting boolean to a string
       DEBUG_PRINTLN(finishCheck ? F("TRUE") : F("FALSE"));
       finishBeforeProgressing = finishCheck;
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       finishBeforeProgressing = false;
     }
@@ -1209,12 +1288,14 @@ class GameFrame : public Usermod {
     strcpy_P(entry, PSTR("moveX"));
 
     // Fetch a value from a key which is present
-    if (ini.getValue(section, entry, buffer, bufferLen)) {
+    if (ini.getValue(section, entry, buffer, bufferLen))
+    {
       DEBUG_PRINT(F("moveX value: "));
       DEBUG_PRINTLN(buffer);
       offsetSpeedX = atoi(buffer);
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       offsetSpeedX = 0;
     }
@@ -1222,12 +1303,14 @@ class GameFrame : public Usermod {
     strcpy_P(entry, PSTR("moveY"));
 
     // Fetch a value from a key which is present
-    if (ini.getValue(section, entry, buffer, bufferLen)) {
+    if (ini.getValue(section, entry, buffer, bufferLen))
+    {
       DEBUG_PRINT(F("moveY value: "));
       DEBUG_PRINTLN(buffer);
       offsetSpeedY = atoi(buffer);
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       offsetSpeedY = 0;
     }
@@ -1237,13 +1320,15 @@ class GameFrame : public Usermod {
     // Fetch a boolean value
     bool loopCheck2;
     bool found2 = ini.getValue(section, entry, buffer, bufferLen, loopCheck2);
-    if (found2) {
+    if (found2)
+    {
       DEBUG_PRINT(F("translate loop value: "));
       // Print value, converting boolean to a string
       DEBUG_PRINTLN(loopCheck2 ? F("TRUE") : F("FALSE"));
       moveLoop = loopCheck2;
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       moveLoop = false;
     }
@@ -1253,13 +1338,15 @@ class GameFrame : public Usermod {
     // Fetch a boolean value
     bool loopCheck3;
     bool found3 = ini.getValue(section, entry, buffer, bufferLen, loopCheck3);
-    if (found3) {
+    if (found3)
+    {
       DEBUG_PRINT(F("panoff value: "));
       // Print value, converting boolean to a string
       DEBUG_PRINTLN(loopCheck3 ? F("TRUE") : F("FALSE"));
       panoff = loopCheck3;
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       panoff = true;
     }
@@ -1267,24 +1354,28 @@ class GameFrame : public Usermod {
     strcpy_P(entry, PSTR("nextFolder"));
 
     // Fetch a value from a key which is present
-    if (ini.getValue(section, entry, buffer, bufferLen)) {
+    if (ini.getValue(section, entry, buffer, bufferLen))
+    {
       DEBUG_PRINT(F("nextFolder value: "));
       DEBUG_PRINTLN(buffer);
       memcpy(nextFolder, buffer, 8);
     }
-    else {
+    else
+    {
       // printErrorMessage(ini.getError());
       nextFolder[0] = '\0';
     }
 
-    if (ini.isOpen()) ini.close();
+    if (ini.isOpen())
+      ini.close();
   }
 
   // These read 16- and 32-bit types from the SD card file.
   // BMP data is stored little-endian, Arduino is little-endian too.
   // May need to reverse subscript order if porting elsewhere.
 
-  uint16_t read16(File& f) {
+  uint16_t read16(File &f)
+  {
     uint16_t result;
     uint8_t buffer[2];
     f.read(buffer, 2);
@@ -1294,7 +1385,8 @@ class GameFrame : public Usermod {
     return result;
   }
 
-  uint32_t read32(File& f) {
+  uint32_t read32(File &f)
+  {
     uint32_t result;
     uint8_t buffer[4];
     f.read(buffer, 4);
@@ -1309,16 +1401,20 @@ class GameFrame : public Usermod {
   }
 
   template <size_t N>
-  String generateDDoptions(const dd_options_t (&options)[N], int selectedValue) {
+  String generateDDoptions(const dd_options_t (&options)[N], int selectedValue)
+  {
     int count = N;
     String result = "";
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       result += F("<option value=\"");
       result += String(options[i].value);
-      if (options[i].value != selectedValue) {
+      if (options[i].value != selectedValue)
+      {
         result += F("\">");
       }
-      else {
+      else
+      {
         result += F("\" selected>");
       }
       result += options[i].name;
@@ -1328,14 +1424,16 @@ class GameFrame : public Usermod {
   }
 
   template <size_t N>
-  void appendAddDropdown(const dd_options_t (&options)[N], String value) {
+  void appendAddDropdown(const dd_options_t (&options)[N], String value)
+  {
     int count = N;
     oappend(SET_F("dd=addDropdown('"));
-    oappend((const char*)FPSTR(_name));
+    oappend((const char *)FPSTR(_name));
     oappend(SET_F("','"));
     oappend(value.c_str());
     oappend(SET_F("');\n"));
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
       oappend(SET_F("addOption(dd,'"));
       oappend(options[i].name);
       oappend(SET_F("',"));
@@ -1344,121 +1442,127 @@ class GameFrame : public Usermod {
     }
   }
 
+public:
+  void setup()
+  {
+#ifdef SD_ADAPTER
+    sdCard = (UsermodSdCard *)usermods.lookup(USERMOD_ID_SD_CARD);
+#endif
 
-  public:
-    void setup() {
-      #ifdef SD_ADAPTER
-        sdCard = (UsermodSdCard*) usermods.lookup(USERMOD_ID_SD_CARD);
-      #endif
-      
-      if(enabled) initGameFrame();
+    if (enabled)
+      initGameFrame();
 
-      initDone = true;
-
-    }
-
-
-  /*
-    * connected() is called every time the WiFi is (re)connected
-    * Use it to initialize network interfaces
-    */
-  void connected() {
-    //Serial.println("Connected to WiFi!");
-    // TODO: add wifi symbol animation
+    initDone = true;
   }
 
+  /*
+   * connected() is called every time the WiFi is (re)connected
+   * Use it to initialize network interfaces
+   */
+  void connected()
+  {
+    // Serial.println("Connected to WiFi!");
+    //  TODO: add wifi symbol animation
+  }
 
   /*
-    * loop() is called continuously. Here you can check for events, read sensors, etc.
-    * 
-    * Tips:
-    * 1. You can use "if (WLED_CONNECTED)" to check for a successful network connection.
-    *    Additionally, "if (WLED_MQTT_CONNECTED)" is available to check for a connection to an MQTT broker.
-    * 
-    * 2. Try to avoid using the delay() function. NEVER use delays longer than 10 milliseconds.
-    *    Instead, use a timer check as shown here.
-    */
-  void loop() {
+   * loop() is called continuously. Here you can check for events, read sensors, etc.
+   *
+   * Tips:
+   * 1. You can use "if (WLED_CONNECTED)" to check for a successful network connection.
+   *    Additionally, "if (WLED_MQTT_CONNECTED)" is available to check for a connection to an MQTT broker.
+   *
+   * 2. Try to avoid using the delay() function. NEVER use delays longer than 10 milliseconds.
+   *    Instead, use a timer check as shown here.
+   */
+  void loop()
+  {
 
-      if(!enabled) return;
-      if(sdCard == nullptr) return;
-      if(!sdCard->configSdEnabled) return;
-      if(!ready) return;
+    if (!enabled)
+      return;
+    if (sdCard == nullptr)
+      return;
+    if (!sdCard->configSdEnabled)
+      return;
+    if (!ready)
+      return;
 
-      getCurrentTime();
+    getCurrentTime();
 
-      if (clockShown == false || clockAnimationActive == true)
+    if (clockShown == false || clockAnimationActive == true)
+    {
+      // advance counter
+      if (currentSecond != lastSecond)
       {
-        // advance counter
-        if (currentSecond != lastSecond)
+        lastSecond = currentSecond;
+        secondCounter++;
+        // revert to clock display if animation played for 5 seconds
+        if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
         {
-          lastSecond = currentSecond;
-          secondCounter++;
-          // revert to clock display if animation played for 5 seconds
-          if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
+          initClock();
+        }
+      }
+
+      // did image load fail?
+      if (abortImage == true && clockShown == false && logoPlayed == true)
+      {
+        abortImage = false;
+        nextImage();
+        drawFrame();
+      }
+
+      // progress to next folder if cycleTime is up
+      // check for infinite mode
+      else if (cycleTimeSetting != 8 && clockShown == false && clockAnimationActive == false)
+      {
+        if (secondCounter >= cycleTime)
+        {
+          if (finishBeforeProgressing == true)
           {
-            initClock();
+            if (timerLapsed == false)
+              timerLapsed = true;
           }
-        }
-
-        // did image load fail?
-        if (abortImage == true && clockShown == false && logoPlayed == true)
-        {
-          abortImage = false;
-          nextImage();
-          drawFrame();
-        }
-
-        // progress to next folder if cycleTime is up
-        // check for infinite mode
-        else if (cycleTimeSetting != 8  && clockShown == false && clockAnimationActive == false)
-        {
-          if (secondCounter >= cycleTime)
+          else
           {
-            if (finishBeforeProgressing == true)
-            {
-              if (timerLapsed == false) timerLapsed = true;
-            }
-            else
-            {
-              nextImage();
-              drawFrame();
-            }
-          }
-        }
-
-        // animate if not a single-frame & animations are on
-        if (holdTime != -1 && playMode != 2 || logoPlayed == false)
-        {
-          if (millis() >= swapTime && clockShown == false)
-          {
-            // statusLedFlicker();
-            swapTime = millis() + holdTime;
-            fileIndex++;
+            nextImage();
             drawFrame();
           }
         }
       }
 
-      // show clock
-      else if (clockShown == true && clockAnimationActive == false)
+      // animate if not a single-frame & animations are on
+      if (holdTime != -1 && playMode != 2 || logoPlayed == false)
       {
-        showClock();
+        if (millis() >= swapTime && clockShown == false)
+        {
+          // statusLedFlicker();
+          swapTime = millis() + holdTime;
+          fileIndex++;
+          drawFrame();
+        }
       }
     }
 
-    /**
+    // show clock
+    else if (clockShown == true && clockAnimationActive == false)
+    {
+      showClock();
+    }
+  }
+
+  /**
    * addToJsonInfo() can be used to add custom entries to the /json/info part of the JSON API.
-   * 
-   * Add 
+   *
+   * Add
    */
   void addToJsonInfo(JsonObject &root)
   {
     JsonObject user = root["u"];
-    if (user.isNull()) user = root.createNestedObject("u");
+    if (user.isNull())
+      user = root.createNestedObject("u");
 
-    JsonArray infoArr = user.createNestedArray(FPSTR(_name)); //name
-    
+    JsonArray infoArr = user.createNestedArray(FPSTR(_name)); // name
+
     String uiDomString = F("<button class=\"btn btn-xs\" onclick=\"requestJson({");
     uiDomString += FPSTR(_name);
     uiDomString += F(":{");
@@ -1470,10 +1574,11 @@ class GameFrame : public Usermod {
     uiDomString += F("</button>");
     infoArr.add(uiDomString);
 
-    // Animation Control butttons 
-    if(enabled) {
+    // Animation Control butttons
+    if (enabled)
+    {
 
-      JsonArray animationArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
+      JsonArray animationArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); // name
       // NextImage trigger button
       String animationDomString = F("<button class=\"btn infobtn\" onclick=\"requestJson({");
       animationDomString += FPSTR(_name);
@@ -1516,12 +1621,11 @@ class GameFrame : public Usermod {
       cycleTimeDomString += generateDDoptions(cycleTimes, cycleTimeSetting);
       cycleTimeDomString += F("</select>");
       cycleTimeArr.add(cycleTimeDomString);
-
     }
 
     // --- add SD card infos ---
 
-    JsonArray sd1Arr = user.createNestedArray("SD card"); //name
+    JsonArray sd1Arr = user.createNestedArray("SD card"); // name
     // show SD init status
     uiDomString = F("<button class=\"btn infobtn\" onclick=\"requestJson({");
     uiDomString += FPSTR(_name);
@@ -1536,15 +1640,17 @@ class GameFrame : public Usermod {
   }
 
   /*
-    * addToJsonInfo() can be used to add custom entries to the /json/info part of the JSON API.
-    * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
-    * Below it is shown how this could be used for e.g. a light sensor
-    */
+   * addToJsonInfo() can be used to add custom entries to the /json/info part of the JSON API.
+   * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
+   * Below it is shown how this could be used for e.g. a light sensor
+   */
   void addToJsonState(JsonObject &root)
   {
-    if (!initDone) return;  // prevent crash on boot applyPreset()
+    if (!initDone)
+      return; // prevent crash on boot applyPreset()
     JsonObject usermod = root[FPSTR(_name)];
-    if (usermod.isNull()) {
+    if (usermod.isNull())
+    {
       usermod = root.createNestedObject(FPSTR(_name));
     }
 
@@ -1554,95 +1660,107 @@ class GameFrame : public Usermod {
   }
 
   /*
-    * readFromJsonState() can be used to receive data clients send to the /json/state part of the JSON API (state object).
-    * Values in the state object may be modified by connected clients
-    */
-  void readFromJsonState(JsonObject& root)
+   * readFromJsonState() can be used to receive data clients send to the /json/state part of the JSON API (state object).
+   * Values in the state object may be modified by connected clients
+   */
+  void readFromJsonState(JsonObject &root)
   {
-    if (!initDone) return;  // prevent crash on boot applyPreset()
+    if (!initDone)
+      return; // prevent crash on boot applyPreset()
     bool prevEnabled = enabled;
     JsonObject usermod = root[FPSTR(_name)];
-    if (!usermod.isNull()) {
+    if (!usermod.isNull())
+    {
 
-      if (usermod[FPSTR(_enabled)].is<bool>()) {
+      if (usermod[FPSTR(_enabled)].is<bool>())
+      {
         enabled = usermod[FPSTR(_enabled)].as<bool>();
-        if (enabled) initGameFrame();
+        if (enabled)
+          initGameFrame();
       }
 
-      if (usermod[FPSTR(_nextImage)].is<int>()) {
+      if (usermod[FPSTR(_nextImage)].is<int>())
+      {
         int nextImageValue = usermod[FPSTR(_nextImage)].as<int>();
-        if (nextImageValue > 0) {
+        if (nextImageValue > 0)
+        {
           nextImage();
           drawFrame();
           usermod[FPSTR(_nextImage)] = 0; // reset NextImage flag
         }
       }
 
-      if (usermod[FPSTR(_displayMode)].is<int>()) {
+      if (usermod[FPSTR(_displayMode)].is<int>())
+      {
         displayMode = usermod[FPSTR(_displayMode)].as<int>();
       }
 
-      if (usermod[FPSTR(_playMode)].is<int>()) {
+      if (usermod[FPSTR(_playMode)].is<int>())
+      {
         playMode = usermod[FPSTR(_playMode)].as<int>();
       }
 
-      if (usermod[FPSTR(_cycleTimeSetting)].is<int>()) {
+      if (usermod[FPSTR(_cycleTimeSetting)].is<int>())
+      {
         int newCycleTimeSetting = usermod[FPSTR(_cycleTimeSetting)].as<int>();
-        if (newCycleTimeSetting != cycleTimeSetting) {
+        if (newCycleTimeSetting != cycleTimeSetting)
+        {
           cycleTimeSetting = newCycleTimeSetting;
           setCycleTime();
         }
       }
 
-      if (usermod[FPSTR(_mountSD)].is<int>()) {
+      if (usermod[FPSTR(_mountSD)].is<int>())
+      {
         int mountSDValue = usermod[FPSTR(_mountSD)].as<int>();
-        if (mountSDValue) initGameFrame();
-        else unmountSD();
+        if (mountSDValue)
+          initGameFrame();
+        else
+          unmountSD();
       }
-
     }
   }
 
   /*
-    * addToConfig() can be used to add custom persistent settings to the cfg.json file in the "um" (usermod) object.
-    * It will be called by WLED when settings are actually saved (for example, LED settings are saved)
-    * If you want to force saving the current state, use serializeConfig() in your loop().
-    * 
-    * CAUTION: serializeConfig() will initiate a filesystem write operation.
-    * It might cause the LEDs to stutter and will cause flash wear if called too often.
-    * Use it sparingly and always in the loop, never in network callbacks!
-    * 
-    * addToConfig() will make your settings editable through the Usermod Settings page automatically.
-    *
-    * Usermod Settings Overview:
-    * - Numeric values are treated as floats in the browser.
-    *   - If the numeric value entered into the browser contains a decimal point, it will be parsed as a C float
-    *     before being returned to the Usermod.  The float data type has only 6-7 decimal digits of precision, and
-    *     doubles are not supported, numbers will be rounded to the nearest float value when being parsed.
-    *     The range accepted by the input field is +/- 1.175494351e-38 to +/- 3.402823466e+38.
-    *   - If the numeric value entered into the browser doesn't contain a decimal point, it will be parsed as a
-    *     C int32_t (range: -2147483648 to 2147483647) before being returned to the usermod.
-    *     Overflows or underflows are truncated to the max/min value for an int32_t, and again truncated to the type
-    *     used in the Usermod when reading the value from ArduinoJson.
-    * - Pin values can be treated differently from an integer value by using the key name "pin"
-    *   - "pin" can contain a single or array of integer values
-    *   - On the Usermod Settings page there is simple checking for pin conflicts and warnings for special pins
-    *     - Red color indicates a conflict.  Yellow color indicates a pin with a warning (e.g. an input-only pin)
-    *   - Tip: use int8_t to store the pin value in the Usermod, so a -1 value (pin not set) can be used
-    *
-    * See usermod_v2_auto_save.h for an example that saves Flash space by reusing ArduinoJson key name strings
-    * 
-    * If you need a dedicated settings page with custom layout for your Usermod, that takes a lot more work.  
-    * You will have to add the setting to the HTML, xml.cpp and set.cpp manually.
-    * See the WLED Soundreactive fork (code and wiki) for reference.  https://github.com/atuline/WLED
-    * 
-    * I highly recommend checking out the basics of ArduinoJson serialization and deserialization in order to use custom settings!
-    */
-  void addToConfig(JsonObject& root)
+   * addToConfig() can be used to add custom persistent settings to the cfg.json file in the "um" (usermod) object.
+   * It will be called by WLED when settings are actually saved (for example, LED settings are saved)
+   * If you want to force saving the current state, use serializeConfig() in your loop().
+   *
+   * CAUTION: serializeConfig() will initiate a filesystem write operation.
+   * It might cause the LEDs to stutter and will cause flash wear if called too often.
+   * Use it sparingly and always in the loop, never in network callbacks!
+   *
+   * addToConfig() will make your settings editable through the Usermod Settings page automatically.
+   *
+   * Usermod Settings Overview:
+   * - Numeric values are treated as floats in the browser.
+   *   - If the numeric value entered into the browser contains a decimal point, it will be parsed as a C float
+   *     before being returned to the Usermod.  The float data type has only 6-7 decimal digits of precision, and
+   *     doubles are not supported, numbers will be rounded to the nearest float value when being parsed.
+   *     The range accepted by the input field is +/- 1.175494351e-38 to +/- 3.402823466e+38.
+   *   - If the numeric value entered into the browser doesn't contain a decimal point, it will be parsed as a
+   *     C int32_t (range: -2147483648 to 2147483647) before being returned to the usermod.
+   *     Overflows or underflows are truncated to the max/min value for an int32_t, and again truncated to the type
+   *     used in the Usermod when reading the value from ArduinoJson.
+   * - Pin values can be treated differently from an integer value by using the key name "pin"
+   *   - "pin" can contain a single or array of integer values
+   *   - On the Usermod Settings page there is simple checking for pin conflicts and warnings for special pins
+   *     - Red color indicates a conflict.  Yellow color indicates a pin with a warning (e.g. an input-only pin)
+   *   - Tip: use int8_t to store the pin value in the Usermod, so a -1 value (pin not set) can be used
+   *
+   * See usermod_v2_auto_save.h for an example that saves Flash space by reusing ArduinoJson key name strings
+   *
+   * If you need a dedicated settings page with custom layout for your Usermod, that takes a lot more work.
+   * You will have to add the setting to the HTML, xml.cpp and set.cpp manually.
+   * See the WLED Soundreactive fork (code and wiki) for reference.  https://github.com/atuline/WLED
+   *
+   * I highly recommend checking out the basics of ArduinoJson serialization and deserialization in order to use custom settings!
+   */
+  void addToConfig(JsonObject &root)
   {
     JsonObject top = root.createNestedObject(FPSTR(_name));
     top[FPSTR(_enabled)] = enabled;
-    
+
     top[FPSTR(_displayMode)] = displayMode;
     top[FPSTR(_playMode)] = playMode;
     top[FPSTR(_cycleTimeSetting)] = cycleTimeSetting;
@@ -1651,23 +1769,22 @@ class GameFrame : public Usermod {
     top[FPSTR(_clockDesign)] = clockDesign;
   }
 
- 
   /*
-    * readFromConfig() can be used to read back the custom settings you added with addToConfig().
-    * This is called by WLED when settings are loaded (currently this only happens immediately after boot, or after saving on the Usermod Settings page)
-    * 
-    * readFromConfig() is called BEFORE setup(). This means you can use your persistent values in setup() (e.g. pin assignments, buffer sizes),
-    * but also that if you want to write persistent values to a dynamic buffer, you'd need to allocate it here instead of in setup.
-    * If you don't know what that is, don't fret. It most likely doesn't affect your use case :)
-    * 
-    * Return true in case the config values returned from Usermod Settings were complete, or false if you'd like WLED to save your defaults to disk (so any missing values are editable in Usermod Settings)
-    * 
-    * getJsonValue() returns false if the value is missing, or copies the value into the variable provided and returns true if the value is present
-    * The configComplete variable is true only if the "exampleUsermod" object and all values are present.  If any values are missing, WLED will know to call addToConfig() to save them
-    * 
-    * This function is guaranteed to be called on boot, but could also be called every time settings are updated
-    */
-  bool readFromConfig(JsonObject& root)
+   * readFromConfig() can be used to read back the custom settings you added with addToConfig().
+   * This is called by WLED when settings are loaded (currently this only happens immediately after boot, or after saving on the Usermod Settings page)
+   *
+   * readFromConfig() is called BEFORE setup(). This means you can use your persistent values in setup() (e.g. pin assignments, buffer sizes),
+   * but also that if you want to write persistent values to a dynamic buffer, you'd need to allocate it here instead of in setup.
+   * If you don't know what that is, don't fret. It most likely doesn't affect your use case :)
+   *
+   * Return true in case the config values returned from Usermod Settings were complete, or false if you'd like WLED to save your defaults to disk (so any missing values are editable in Usermod Settings)
+   *
+   * getJsonValue() returns false if the value is missing, or copies the value into the variable provided and returns true if the value is present
+   * The configComplete variable is true only if the "exampleUsermod" object and all values are present.  If any values are missing, WLED will know to call addToConfig() to save them
+   *
+   * This function is guaranteed to be called on boot, but could also be called every time settings are updated
+   */
+  bool readFromConfig(JsonObject &root)
   {
     // default settings values could be set here (or below using the 3-argument getJsonValue()) instead of in the class definition or constructor
     // setting them inside readFromConfig() is slightly more robust, handling the rare but plausible use case of single value being missing after boot (e.g. if the cfg.json was manually edited and a value was removed)
@@ -1688,10 +1805,10 @@ class GameFrame : public Usermod {
   }
 
   /*
-    * appendConfigData() is called when user enters usermod settings page
-    * it may add additional metadata for certain entry fields (adding drop down is possible)
-    * be careful not to add too much as oappend() buffer is limited to 3k
-    */
+   * appendConfigData() is called when user enters usermod settings page
+   * it may add additional metadata for certain entry fields (adding drop down is possible)
+   * be careful not to add too much as oappend() buffer is limited to 3k
+   */
   void appendConfigData()
   {
     appendAddDropdown(displayModes, FPSTR(_displayMode));
@@ -1701,15 +1818,15 @@ class GameFrame : public Usermod {
     appendAddDropdown(clockDesigns, FPSTR(_clockDesign));
   }
 
-
   /*
-    * handleOverlayDraw() is called just before every show() (LED strip update frame) after effects have set the colors.
-    * Use this to blank out some LEDs or set them to a different color regardless of the set effect mode.
-    * Commonly used for custom clocks (Cronixie, 7 segment)
-    */
+   * handleOverlayDraw() is called just before every show() (LED strip update frame) after effects have set the colors.
+   * Use this to blank out some LEDs or set them to a different color regardless of the set effect mode.
+   * Commonly used for custom clocks (Cronixie, 7 segment)
+   */
   void handleOverlayDraw()
   {
-    if(!enabled) return;
+    if (!enabled)
+      return;
 
     // loop over all leds
     for (int x = 0; x < 256; x++)
@@ -1718,28 +1835,27 @@ class GameFrame : public Usermod {
     }
   }
 
-  
   /*
-    * getId() allows you to optionally give your V2 usermod an unique ID (please define it in const.h!).
-    * This could be used in the future for the system to determine whether your usermod is installed.
-    */
+   * getId() allows you to optionally give your V2 usermod an unique ID (please define it in const.h!).
+   * This could be used in the future for the system to determine whether your usermod is installed.
+   */
   uint16_t getId()
   {
     return USERMOD_ID_GAMEFRAME;
   }
 
-  //More methods can be added in the future, this example will then be extended.
-  //Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
+  // More methods can be added in the future, this example will then be extended.
+  // Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
 };
 
 // strings to reduce flash memory usage (used more than twice)
-const char GameFrame::_name[]       PROGMEM = "GameFrame";
-const char GameFrame::_enabled[]    PROGMEM = "enabled";
-const char GameFrame::_nextImage[]  PROGMEM = "next";
-const char GameFrame::_displayMode[]   PROGMEM = "DisplayMode";
-const char GameFrame::_playMode[]   PROGMEM = "PlayMode";
+const char GameFrame::_name[] PROGMEM = "GameFrame";
+const char GameFrame::_enabled[] PROGMEM = "enabled";
+const char GameFrame::_nextImage[] PROGMEM = "next";
+const char GameFrame::_displayMode[] PROGMEM = "DisplayMode";
+const char GameFrame::_playMode[] PROGMEM = "PlayMode";
 const char GameFrame::_cycleTimeSetting[] PROGMEM = "CycleTime";
-const char GameFrame::_enableSecondHand[] PROGMEM = "EnableSecondHand"; 
+const char GameFrame::_enableSecondHand[] PROGMEM = "EnableSecondHand";
 const char GameFrame::_clockAnimationLength[] PROGMEM = "ClockAnimationLength";
 const char GameFrame::_clockDesign[] PROGMEM = "ClockDesign";
 const char GameFrame::_mountSD[] PROGMEM = "sd";
