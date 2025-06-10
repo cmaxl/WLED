@@ -4,8 +4,8 @@
 
 #include "IniFileLite.h"
 
-//TODO add description
-//TODO improve commenring
+// TODO fix the inifile include
+// TODO improve commenting
 
 #define GF_DEBUG_FILES 0
 
@@ -14,6 +14,11 @@
 struct dd_options_t {
   const int value; // value to be set
   const char name[21]; // name to be shown in dropdown
+};
+
+static dd_options_t displayModes PROGMEM[] = {
+  {0, "Slideshow"},
+  {1, "Clock"}
 };
 
 static dd_options_t playModes PROGMEM[] = {
@@ -33,6 +38,16 @@ static dd_options_t cycleTimes PROGMEM[] = {
   {8, "Infinite"}
 };
 
+static dd_options_t clockDesigns PROGMEM[] = {
+  {1, "Rainbow"},
+  {2, "White"},
+  {3, "Blueface"},
+  {4, "Tick Mark"},
+  {5, "Binary"},
+  {6, "Binary v2"},
+  {7, "TIX"}
+};
+
 class GameFrame : public Usermod {
   public:
 
@@ -44,26 +59,31 @@ class GameFrame : public Usermod {
       ready = false,
       sdMounted = false,
       updateConfig = false,
-      showOnce = false,
       logoPlayed = false, // plays logo animation correctly reardless of playMode
       folderLoop = true, // animation looping
       moveLoop = false, // translation/pan looping
-      menuActive = false, // showing menus (set brightness, playback mode, etc.)
       panoff = true, // movement scrolls off screen
       singleGraphic = false, // single BMP file or multiple BMP files
       abortImage = false, // image is corrupt; abort, retry, fail?
       clockShown = false, // clock mode?
       finishBeforeProgressing = false, // finish the animation before progressing?
-      breakout = false, // breakout playing?
+      enableSecondHand = false,
       clockAnimationActive = false, // currently showing clock anim
       timerLapsed = false; // timer lapsed, queue next animation when current one finishes
 
     byte
-      displayMode = 0, // 0 = slideshow, 1 = clock
+      displayMode = 1, // 0 = slideshow, 1 = clock
       playMode = 0, // 0 = sequential, 1 = random, 2 = pause animations
       cycleTimeSetting = 2, // time before next animation: 1=10 secs, 2=30 secs, 3=1 min... 8=infinity
       clockAnimationLength = 5, // seconds to play clock animations
+      clockDesign = 1,
+      prevClockDesign = 1,
+      secondHandX = 0,
+      secondHandY = 0,
+      secondOffset = 0,
       lastSecond = 255, // a moment ago
+      currentHour = 12,
+      currentMinute = 0,
       currentSecond = 255; // current second
 
     int
@@ -92,10 +112,12 @@ class GameFrame : public Usermod {
     char
       chainRootFolder[9], // chain game
       nextFolder[21], // dictated next animation
-      curFolder[21]; // current animation
+      curFolder[21], // current animation
+      clockBmp[30] = "/00system/digits.BMP";
 
       CRGB
-        matrix[256] = {0};
+        matrix[256] = {0},
+        secondHandColor = 0; // color grabbed from digits.bmp for second hand;
 
     #ifdef SD_ADAPTER
       UsermodSdCard *sdCard;
@@ -104,12 +126,17 @@ class GameFrame : public Usermod {
     #endif
 
     // strings to reduce flash memory usage (used more than twice)
-    static const char _name[];
-    static const char _enabled[];
-    static const char _nextImage[];
-    static const char _playMode[];
-    static const char _cycleTimeSetting[];
-    static const char _mountSD[];
+    static const char 
+      _name[], 
+      _enabled[],
+      _nextImage[],
+      _displayMode[],
+      _playMode[],
+      _cycleTimeSetting[],
+      _mountSD[],
+      _enableSecondHand[], 
+      _clockAnimationLength[], 
+      _clockDesign[];
   
   uint8_t dim8_jer( uint8_t x )
   {
@@ -374,6 +401,7 @@ class GameFrame : public Usermod {
     timerLapsed = false;
     if (!logoPlayed) logoPlayed = true;
 
+    // TODO remove chaining
     // are we chaining folders?
     if (chainIndex > -1)
     {
@@ -632,7 +660,7 @@ class GameFrame : public Usermod {
           else if (displayMode == 1)
           {
             // just displayed logo, enter clock mode
-            // initClock();
+            initClock();
             return;
           }
         }
@@ -881,16 +909,226 @@ class GameFrame : public Usermod {
         } // end goodBmp
       }
     }
-    if (!clockShown || breakout == true)
-    {
-      showOnce = true;
-      // FastLED.show();
-    }
-    if (singleGraphic == false || breakout == true)
+    if (singleGraphic == false)
     {
       closeMyFile();
     }
     if (!goodBmp) Serial.println(F("Format unrecognized"));
+  }
+
+  void updateClockDesign() {
+    if(clockDesign != prevClockDesign) {
+
+      char filename[32];
+      snprintf(filename, sizeof(filename), "%s%d%s", PSTR("/00system/digits_"), clockDesign, PSTR(".BMP"));
+      
+      if(file_onSD(filename)) {
+        strcpy(clockBmp, filename);
+      }
+      else {
+        DEBUG_PRINT(F("GameFrame: clockface not available "));
+        DEBUG_PRINTLN(filename);
+        clockDesign = prevClockDesign;
+      }
+
+      prevClockDesign = clockDesign;
+    }
+  }
+
+  void initClock()
+  {
+
+    secondCounter = 0;
+    clockShown = true;
+    clockAnimationActive = false;
+    lastSecond = 255;
+
+    closeMyFile();
+    holdTime = 0;
+    fileIndex = 0;
+    singleGraphic = true;
+    if (!logoPlayed) logoPlayed = true;
+
+    updateClockDesign();
+
+    if (!enableSecondHand)
+    {
+      // 24 hour conversion
+      if (useAMPM && currentHour > 12) currentHour -= 12;
+      if (useAMPM && currentHour == 0) currentHour = 12;
+      drawDigitsAndShow();
+    }
+  }
+
+  void drawDigitsAndShow()
+  {
+    drawDigits();
+    strip.trigger();
+  }
+
+  void getCurrentTime()
+  {
+    currentSecond = second(localTime);
+    currentMinute = minute(localTime);
+    currentHour = hour(localTime);
+  }
+
+  void showClock()
+  {
+    if (currentSecond != lastSecond)
+    {
+      secondCounter++;
+      lastSecond = currentSecond;
+
+      // 24 hour conversion
+      if (useAMPM && currentHour > 12) currentHour -= 12;
+      if (useAMPM && currentHour == 0) currentHour = 12;
+
+      updateClockDesign();
+
+      // draw time
+      if (enableSecondHand)
+      {
+        // offset second hand if required
+        currentSecond = currentSecond + secondOffset;
+        if (currentSecond >= 60) currentSecond -= 60;
+        storeSecondHandColor();
+        drawDigits();
+        secondHand();
+      }
+      // second hand disabled, so only draw time on new minute
+      else if (currentSecond == 0)
+      {
+        drawDigitsAndShow();
+      }
+
+  //    debugClockDisplay();
+
+      // show an animation
+      if (cycleTime != -1 && clockAnimationLength > 0 && (secondsIntoHour() % cycleTime) == 0)
+      {
+        secondCounter = 0;
+        currentSecond = second(localTime);
+        clockAnimationActive = true;
+        clockShown = false;
+        closeMyFile();
+        abortImage = true;
+        // nextFolder[0] = '\0';
+      }
+      // this boolean is set here to avoid showing an animation immediately after clock being set
+      // else if (!clockSet) clockSet = true;
+    }
+  }
+
+  int secondsIntoHour()
+  {
+    return (currentMinute * 60) + currentSecond;
+  }
+
+  void drawDigits()
+  {
+    clockDigit_1();
+    clockDigit_2();
+    clockDigit_3();
+    clockDigit_4();
+    closeMyFile();
+  }
+
+  void storeSecondHandColor()
+  {
+    getSecondHandIndex();
+    offsetX = 0;
+    offsetY = 176;
+    // max brightness in order to store correct color value
+    bmpDraw(clockBmp, 0, 0);
+    secondHandColor = matrix[getIndex(secondHandX, secondHandY)];
+  }
+
+  void clockDigit_1()
+  {
+    char numChar[3];
+    itoa(currentHour, numChar, 10);
+    byte singleDigit = numChar[0] - '0';
+    offsetX = -1;
+    if (currentHour >= 10)
+    {
+      offsetY = singleDigit * 16;
+    }
+    else offsetY = 160;
+    bmpDraw(clockBmp, 0, 0);
+  }
+
+  void clockDigit_2()
+  {
+    char numChar[3];
+    itoa(currentHour, numChar, 10);
+    byte singleDigit;
+    if (currentHour >= 10)
+    {
+      singleDigit = numChar[1] - '0';
+    }
+    else singleDigit = numChar[0] - '0';
+    offsetX = 0;
+    offsetY = singleDigit * 16;
+    bmpDraw(clockBmp, 3, 0);
+  }
+
+  void clockDigit_3()
+  {
+    char numChar[3];
+    itoa(currentMinute, numChar, 10);
+    byte singleDigit;
+    if (currentMinute >= 10)
+    {
+      singleDigit = numChar[0] - '0';
+    }
+    else singleDigit = 0;
+    offsetY = singleDigit * 16;
+    bmpDraw(clockBmp, 8, 0);
+  }
+
+  void clockDigit_4()
+  {
+    char numChar[3];
+    itoa(currentMinute, numChar, 10);
+    byte singleDigit;
+    if (currentMinute >= 10)
+    {
+      singleDigit = numChar[1] - '0';
+    }
+    else singleDigit = numChar[0] - '0';
+    offsetY = singleDigit * 16;
+    bmpDraw(clockBmp, 12, 0);
+  }
+
+  void getSecondHandIndex()
+  {
+    if (currentSecond < 16)
+    {
+      secondHandX = currentSecond;
+      secondHandY = 0;
+    }
+    else if (currentSecond >= 16 && currentSecond < 30)
+    {
+      secondHandX = 15;
+      secondHandY = (currentSecond - 15);
+    }
+    else if (currentSecond >= 30 && currentSecond < 46)
+    {
+      secondHandX = (15 - (currentSecond - 30));
+      secondHandY = 15;
+    }
+    else if (currentSecond >= 46)
+    {
+      secondHandX = 0;
+      secondHandY = (15 - (currentSecond - 45));
+    }
+  }
+
+  void secondHand()
+  {
+    getSecondHandIndex();
+    matrix[getIndex(secondHandX, secondHandY)] = secondHandColor;
   }
 
   void readIniFile()
@@ -1147,68 +1385,65 @@ class GameFrame : public Usermod {
       if(!sdCard->configSdEnabled) return;
       if(!ready) return;
 
-      currentSecond = second(localTime);
-      // currently playing images?
-      if (menuActive == false && breakout == false)
+      getCurrentTime();
+
+      if (clockShown == false || clockAnimationActive == true)
       {
-        if (clockShown == false || clockAnimationActive == true)
+        // advance counter
+        if (currentSecond != lastSecond)
         {
-          // advance counter
-          if (currentSecond != lastSecond)
+          lastSecond = currentSecond;
+          secondCounter++;
+          // revert to clock display if animation played for 5 seconds
+          if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
           {
-            lastSecond = currentSecond;
-            secondCounter++;
-            // revert to clock display if animation played for 5 seconds
-            if (clockAnimationActive == true && secondCounter >= clockAnimationLength)
+            initClock();
+          }
+        }
+
+        // did image load fail?
+        if (abortImage == true && clockShown == false && logoPlayed == true)
+        {
+          abortImage = false;
+          nextImage();
+          drawFrame();
+        }
+
+        // progress to next folder if cycleTime is up
+        // check for infinite mode
+        else if (cycleTimeSetting != 8  && clockShown == false && clockAnimationActive == false)
+        {
+          if (secondCounter >= cycleTime)
+          {
+            if (finishBeforeProgressing == true)
             {
-              // initClock();
+              if (timerLapsed == false) timerLapsed = true;
             }
-          }
-
-          // did image load fail?
-          if (abortImage == true && clockShown == false && logoPlayed == true)
-          {
-            abortImage = false;
-            nextImage();
-            drawFrame();
-          }
-
-          // progress to next folder if cycleTime is up
-          // check for infinite mode
-          else if (cycleTimeSetting != 8  && clockShown == false && clockAnimationActive == false)
-          {
-            if (secondCounter >= cycleTime)
+            else
             {
-              if (finishBeforeProgressing == true)
-              {
-                if (timerLapsed == false) timerLapsed = true;
-              }
-              else
-              {
-                nextImage();
-                drawFrame();
-              }
-            }
-          }
-
-          // animate if not a single-frame & animations are on
-          if (holdTime != -1 && playMode != 2 || logoPlayed == false)
-          {
-            if (millis() >= swapTime && clockShown == false)
-            {
-              // statusLedFlicker();
-              swapTime = millis() + holdTime;
-              fileIndex++;
+              nextImage();
               drawFrame();
             }
           }
         }
 
-        // show clock
-        else if (clockShown == true && clockAnimationActive == false)
+        // animate if not a single-frame & animations are on
+        if (holdTime != -1 && playMode != 2 || logoPlayed == false)
         {
-          // showClock();
+          if (millis() >= swapTime && clockShown == false)
+          {
+            // statusLedFlicker();
+            swapTime = millis() + holdTime;
+            fileIndex++;
+            drawFrame();
+          }
         }
+      }
+
+      // show clock
+      else if (clockShown == true && clockAnimationActive == false)
+      {
+        showClock();
       }
     }
 
@@ -1248,6 +1483,17 @@ class GameFrame : public Usermod {
       animationDomString += F("Next Animation");
       animationDomString += F("</button>");
       animationArr.add(animationDomString);
+
+      // displayMode
+      JsonArray displayModeArr = user.createNestedArray(FPSTR(_displayMode));
+      String displayModeDomString = F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
+      displayModeDomString += FPSTR(_name);
+      displayModeDomString += F(":{");
+      displayModeDomString += FPSTR(_displayMode);
+      displayModeDomString += F(":Number(event.target.value)}});return false;\">");
+      displayModeDomString += generateDDoptions(displayModes, displayMode);
+      displayModeDomString += F("</select>");
+      displayModeArr.add(displayModeDomString);
 
       // playMode 0 = sequential, 1 = random, 2 = pause animation
       JsonArray playModeArr = user.createNestedArray(FPSTR(_playMode));
@@ -1332,6 +1578,10 @@ class GameFrame : public Usermod {
         }
       }
 
+      if (usermod[FPSTR(_displayMode)].is<int>()) {
+        displayMode = usermod[FPSTR(_displayMode)].as<int>();
+      }
+
       if (usermod[FPSTR(_playMode)].is<int>()) {
         playMode = usermod[FPSTR(_playMode)].as<int>();
       }
@@ -1393,8 +1643,12 @@ class GameFrame : public Usermod {
     JsonObject top = root.createNestedObject(FPSTR(_name));
     top[FPSTR(_enabled)] = enabled;
     
+    top[FPSTR(_displayMode)] = displayMode;
     top[FPSTR(_playMode)] = playMode;
     top[FPSTR(_cycleTimeSetting)] = cycleTimeSetting;
+    top[FPSTR(_enableSecondHand)] = enableSecondHand;
+    top[FPSTR(_clockAnimationLength)] = clockAnimationLength;
+    top[FPSTR(_clockDesign)] = clockDesign;
   }
 
  
@@ -1423,8 +1677,12 @@ class GameFrame : public Usermod {
     bool configComplete = !top.isNull();
 
     configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
+    configComplete &= getJsonValue(top[FPSTR(_displayMode)], displayMode);
     configComplete &= getJsonValue(top[FPSTR(_playMode)], playMode);
     configComplete &= getJsonValue(top[FPSTR(_cycleTimeSetting)], cycleTimeSetting);
+    configComplete &= getJsonValue(top[FPSTR(_enableSecondHand)], enableSecondHand);
+    configComplete &= getJsonValue(top[FPSTR(_clockAnimationLength)], clockAnimationLength);
+    configComplete &= getJsonValue(top[FPSTR(_clockDesign)], clockDesign);
 
     return configComplete;
   }
@@ -1436,8 +1694,11 @@ class GameFrame : public Usermod {
     */
   void appendConfigData()
   {
+    appendAddDropdown(displayModes, FPSTR(_displayMode));
     appendAddDropdown(playModes, FPSTR(_playMode));
     appendAddDropdown(cycleTimes, FPSTR(_cycleTimeSetting));
+    oappend(SET_F("addInfo('GameFrame:ClockAnimationLength',1,'s');"));
+    appendAddDropdown(clockDesigns, FPSTR(_clockDesign));
   }
 
 
@@ -1455,7 +1716,6 @@ class GameFrame : public Usermod {
     {
       strip.setPixelColor(x, matrix[x]);
     }
-    showOnce = false;
   }
 
   
@@ -1476,6 +1736,10 @@ class GameFrame : public Usermod {
 const char GameFrame::_name[]       PROGMEM = "GameFrame";
 const char GameFrame::_enabled[]    PROGMEM = "enabled";
 const char GameFrame::_nextImage[]  PROGMEM = "next";
+const char GameFrame::_displayMode[]   PROGMEM = "DisplayMode";
 const char GameFrame::_playMode[]   PROGMEM = "PlayMode";
 const char GameFrame::_cycleTimeSetting[] PROGMEM = "CycleTime";
+const char GameFrame::_enableSecondHand[] PROGMEM = "EnableSecondHand"; 
+const char GameFrame::_clockAnimationLength[] PROGMEM = "ClockAnimationLength";
+const char GameFrame::_clockDesign[] PROGMEM = "ClockDesign";
 const char GameFrame::_mountSD[] PROGMEM = "sd";
