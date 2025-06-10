@@ -1238,35 +1238,39 @@ class GameFrame : public Usermod {
     // Animation Control butttons 
     if(enabled) {
 
-      JsonArray animationSettingsArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
-
-      // playMode 0 = sequential, 1 = random, 2 = pause animation
-      String animationDomString = F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
-      animationDomString += FPSTR(_name);
-      animationDomString += F(":{");
-      animationDomString += FPSTR(_playMode);
-      animationDomString += F(":Number(event.target.value)}});return false;\">");
-      animationDomString += generateDDoptions(playModes, playMode);
-      animationDomString += F("</select>");
-
-      // cycleTimeSettings button
-      animationDomString += F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
-      animationDomString += FPSTR(_name);
-      animationDomString += F(":{");
-      animationDomString += FPSTR(_cycleTimeSetting);
-      animationDomString += F(":Number(event.target.value)}});return false;\">");
-      animationDomString += generateDDoptions(cycleTimes, cycleTimeSetting);
-      animationDomString += F("</select>");
-
+      JsonArray animationArr = user.createNestedArray(String(F("Animation: ")) + String(curFolder)); //name
       // NextImage trigger button
-      animationDomString += F("<button class=\"btn infobtn\" onclick=\"requestJson({");
+      String animationDomString = F("<button class=\"btn infobtn\" onclick=\"requestJson({");
       animationDomString += FPSTR(_name);
       animationDomString += F(":{");
       animationDomString += FPSTR(_nextImage);
       animationDomString += F(":1}});return false;\">");
       animationDomString += F("Next Animation");
       animationDomString += F("</button>");
-      animationSettingsArr.add(animationDomString);
+      animationArr.add(animationDomString);
+
+      // playMode 0 = sequential, 1 = random, 2 = pause animation
+      JsonArray playModeArr = user.createNestedArray(FPSTR(_playMode));
+      String playModeDomString = F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
+      playModeDomString += FPSTR(_name);
+      playModeDomString += F(":{");
+      playModeDomString += FPSTR(_playMode);
+      playModeDomString += F(":Number(event.target.value)}});return false;\">");
+      playModeDomString += generateDDoptions(playModes, playMode);
+      playModeDomString += F("</select>");
+      playModeArr.add(playModeDomString);
+
+      // cycleTimeSettings button
+      JsonArray cycleTimeArr = user.createNestedArray(FPSTR(_cycleTimeSetting));
+      String cycleTimeDomString = F("<select margin=\"8px\" padding=\"8px 12px\" onchange=\"requestJson({");
+      cycleTimeDomString += FPSTR(_name);
+      cycleTimeDomString += F(":{");
+      cycleTimeDomString += FPSTR(_cycleTimeSetting);
+      cycleTimeDomString += F(":Number(event.target.value)}});return false;\">");
+      cycleTimeDomString += generateDDoptions(cycleTimes, cycleTimeSetting);
+      cycleTimeDomString += F("</select>");
+      cycleTimeArr.add(cycleTimeDomString);
+
     }
 
     // --- add SD card infos ---
