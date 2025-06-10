@@ -421,20 +421,13 @@ class GameFrame : public Usermod {
       // shuffle playback using random number
       if (playMode != 0) // check we're not in a sequential play mode
       {
-        int targetFolder = random(0, numFolders);
-
-        // don't repeat the same image, please.
-        if (targetFolder <= 0 or targetFolder == numFolders or targetFolder == numFolders - 1)
-        {
-          // Repeat image detected! Incrementing targetFolder.
-          targetFolder = targetFolder + 2;
-        }
+        int targetFolder = random(0, numFolders-2);
 
         Serial.print(F("Randomly advancing "));
         Serial.print(targetFolder);
         Serial.println(F(" folder(s)."));
         
-        folderIndex = (folderIndex + targetFolder) % numFolders;
+        folderIndex = (folderIndex + targetFolder) % (numFolders-1);
       }
 
       while (foundNewFolder == false)
