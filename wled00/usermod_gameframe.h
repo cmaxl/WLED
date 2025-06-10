@@ -430,38 +430,12 @@ class GameFrame : public Usermod {
           targetFolder = targetFolder + 2;
         }
 
-        // TODO: fix random folder selection
         Serial.print(F("Randomly advancing "));
         Serial.print(targetFolder);
         Serial.println(F(" folder(s)."));
-        int i = 1;
-        while (i < targetFolder)
-        {
-          foundNewFolder = false;
-          while (foundNewFolder == false)
-          {
-            File root = SD_ADAPTER.open("/"); // Open the root directory
-            File entry = root.openNextFile(); // Get the first file in the directory
-            if (!entry) {
-              Serial.println(F("Failed to open root directory."));
-              return;
-            }
-            int currentIndex = 0;
-            while (entry) {
-              if (currentIndex == folderIndex && entry.isDirectory()) {
-              foundNewFolder = true;
-              i++;
-              break;
-              }
-              entry = root.openNextFile(); // Move to the next file
-              currentIndex++;
-            }
-            folderIndex++;
-          }
-        }
+        
+        folderIndex = (folderIndex + targetFolder) % numFolders;
       }
-
-      foundNewFolder = false;
 
       while (foundNewFolder == false)
       {
@@ -1465,8 +1439,8 @@ class GameFrame : public Usermod {
     */
   void appendConfigData()
   {
-    appendAddDropdown(playModes, "playMode");
-    appendAddDropdown(cycleTimes, "cycleTimeSetting");
+    appendAddDropdown(playModes, FPSTR(_playMode));
+    appendAddDropdown(cycleTimes, FPSTR(_cycleTimeSetting));
   }
 
 
@@ -1505,6 +1479,6 @@ class GameFrame : public Usermod {
 const char GameFrame::_name[]       PROGMEM = "GameFrame";
 const char GameFrame::_enabled[]    PROGMEM = "enabled";
 const char GameFrame::_nextImage[]  PROGMEM = "next";
-const char GameFrame::_playMode[]   PROGMEM = "pm";
-const char GameFrame::_cycleTimeSetting[] PROGMEM = "cts";
+const char GameFrame::_playMode[]   PROGMEM = "PlayMode";
+const char GameFrame::_cycleTimeSetting[] PROGMEM = "CycleTime";
 const char GameFrame::_mountSD[] PROGMEM = "sd";
