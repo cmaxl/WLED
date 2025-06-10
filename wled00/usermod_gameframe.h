@@ -19,7 +19,7 @@ struct dd_options_t {
 static dd_options_t playModes PROGMEM[] = {
   {0, "Sequential"},
   {1, "Random"},
-  // {2, "Pause"}
+  {2, "Pause"}
 };
 
 static dd_options_t cycleTimes PROGMEM[] = {
