@@ -307,3 +307,15 @@ static WordclockLanguage language_d4_alt PROGMEM = {
         return my_hour;
     }
 };
+
+#define WQ_NUMBER_OF_LANGUAGES 5
+WordclockLanguage* getLanguageByIndex(uint8_t idx) {
+  switch(idx) {
+    case 0: return &language_en;
+    case 1: return &language_de;
+    case 2: return &language_d4;
+    case 3: return &language_de_alt;
+    case 4: return &language_d4_alt;
+  }
+  return nullptr;
+}

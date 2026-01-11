@@ -34,16 +34,7 @@ class WordClock : public Usermod {
       maskLEDs_previous[114] = {0};
     int8_t maskBuffer[WQ_MASK_SIZE] = {0};
 
-    const uint8_t numberOfLanguages = 5;
-    static constexpr WordclockLanguage *wc_language_list[] = {
-      &language_en,
-      &language_de,
-      &language_de_alt,
-      // &language_d3,
-      &language_d4,
-      &language_d4_alt
-    };
-    WordclockLanguage *language = wc_language_list[languageIndex];
+    WordclockLanguage *language = getLanguageByIndex(languageIndex);
     String languageId = language->id;
 
     bool
@@ -79,7 +70,7 @@ class WordClock : public Usermod {
       //clear maskLEDsOn
       memset(maskLEDsOn, 0, sizeof(maskLEDsOn));
 
-      language = wc_language_list[languageIndex];
+      language = getLanguageByIndex(languageIndex);
 
       uint8_t hourIndex = language->getHourIndex(my_hour, my_minute);
       uint8_t minuteIndex = my_minute/5;
@@ -109,10 +100,11 @@ class WordClock : public Usermod {
     }
 
     void changeLanguage(String newLang) {
-      for (uint8_t i = 0; i < numberOfLanguages; i++) {
-        if (newLang == wc_language_list[i]->id) {
+      for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
+        WordclockLanguage *wl = getLanguageByIndex(i);
+        if (newLang == wl->id) {
           languageIndex = i;
-          language = wc_language_list[languageIndex];
+          language = wl;
           languageId = language->id;
           updateDisplay();
           return;
@@ -204,15 +196,16 @@ class WordClock : public Usermod {
       uiDomString = F("<select class=\"form-control\" onchange=\"requestJson({");
       uiDomString += FPSTR(_shorthand);
       uiDomString += F(":{language:this.value}})\">");
-      for (uint8_t i = 0; i < numberOfLanguages; i++) {
+      for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
+        WordclockLanguage *wl = getLanguageByIndex(i);
         uiDomString += F("<option value=\"");
-        uiDomString += wc_language_list[i]->id;
+        uiDomString += wl->id;
         uiDomString += F("\"");
         if (i == languageIndex) uiDomString += F(" selected");
         uiDomString += F(">");
-        uiDomString += wc_language_list[i]->id;
+        uiDomString += wl->id;
         uiDomString += F(" - ");
-        uiDomString += wc_language_list[i]->name;
+        uiDomString += wl->name;
         uiDomString += F("</option>");
       }
       infoArr.add(uiDomString);
@@ -425,14 +418,15 @@ class WordClock : public Usermod {
     void appendConfigData()
     {
       oappend(SET_F("dd=addDropdown('")); oappend(String(FPSTR(_name)).c_str()); oappend(SET_F("','language');"));
-      for (uint8_t i = 0; i < numberOfLanguages; i++) {
+      for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
+        WordclockLanguage *wl = getLanguageByIndex(i);
         oappend(SET_F("addOption(dd,'"));
         // example: addOption(dd,'EN (english)','EN');
-        oappend(wc_language_list[i]->id);
+        oappend(wl->id);
         oappend(SET_F(" ("));
-        oappend(wc_language_list[i]->name);
+        oappend(wl->name);
         oappend(SET_F(")','"));
-        oappend(wc_language_list[i]->id);
+        oappend(wl->id);
         oappend(SET_F("');"));
       }
     }
