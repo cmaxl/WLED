@@ -53,6 +53,7 @@ class WordClock : public Usermod {
     // writes the maskLEDsOn array with the LEDs that are relevant based on the
     // wordMask array. The wordMask array contains the indices of the LEDs.
     // Essentially writes one row of the matrix to the maskLEDsOn array.
+    // TODO avoid using maskBuffer and memcpy
     void writeBufferToMask() {
       for (int8_t i=0; i < WQ_MASK_SIZE; i++) {
         if(maskBuffer[i] >= 0) maskLEDsOn[maskBuffer[i]] = 1;
@@ -276,6 +277,7 @@ class WordClock : public Usermod {
       }
 
       usermod[FPSTR(_language)] = languageId;
+      // TODO debugging: current ledmask array 
 
     }
 
@@ -441,7 +443,6 @@ class WordClock : public Usermod {
     {
       if(!enabled) return;
 
-      // TODO: add background
       static uint32_t transitionStart = 0;
       static uint8_t transitionStep = 0;
       if (inTransition || doTransition) {
