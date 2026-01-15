@@ -486,6 +486,12 @@ class WordClock : public Usermod {
 
         strip.setPixelColor(i, bg);
       }
+
+      // turn virtual LEDs off
+      for (int i=115; i<231; i++) 
+      {
+        strip.setPixelColor(i, 0);
+      }
     }
 
    
