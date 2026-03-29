@@ -1862,6 +1862,8 @@ bool WS2812FX::deserializeMap(uint8_t n) {
   currentLedmap = 0;
   if (n == 0 || isFile) interfaceUpdateCallMode = CALL_MODE_WS_SEND; // schedule WS update (to inform UI)
 
+  setUpMatrix(); // only for wordqlock
+  
   if (!isFile && n==0 && isMatrix) {
     setUpMatrix();
     return false;
