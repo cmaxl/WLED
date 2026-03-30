@@ -2008,8 +2008,6 @@ bool WS2812FX::deserializeMap(unsigned n) {
   customMappingSize = 0; // prevent use of mapping if anything goes wrong
   currentLedmap = 0;
   if (n == 0 || isFile) interfaceUpdateCallMode = CALL_MODE_WS_SEND; // schedule WS update (to inform UI)
-
-  setUpMatrix(); // only for wordqlock
   
   if (!isFile && n==0 && isMatrix) {
     // 2D panel support creates its own ledmap (on the fly) if a ledmap.json does not exist
