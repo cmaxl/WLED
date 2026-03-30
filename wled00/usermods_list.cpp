@@ -245,6 +245,27 @@
 // #include "usermod_gameframe.h"
 #include "usermod_wordclock.h"
 
+
+#ifdef USERMOD_MAX17048
+  #include "../usermods/MAX17048_v2/usermod_max17048.h"
+#endif
+
+#ifdef USERMOD_TETRISAI
+  #include "../usermods/TetrisAI_v2/usermod_v2_tetrisai.h"
+#endif
+
+#ifdef USERMOD_AHT10
+  #include "../usermods/AHT10_v2/usermod_aht10.h"
+#endif
+
+#ifdef USERMOD_INA226
+  #include "../usermods/INA226_v2/usermod_ina226.h"
+#endif
+
+#ifdef USERMOD_LD2410
+#include "../usermods/LD2410_v2/usermod_ld2410.h"
+#endif
+
 void registerUsermods()
 {
 /*
