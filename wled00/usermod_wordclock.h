@@ -106,6 +106,7 @@ class WordClock : public Usermod {
           languageIndex = i;
           language = wl;
           languageId = language->id;
+          DEBUG_PRINT("WordClock::changeLanguage - new: "); DEBUG_PRINT(language->name);
           updateDisplay();
           return;
         }
@@ -121,6 +122,7 @@ class WordClock : public Usermod {
      * You can use it to initialize variables, sensors or similar.
      */
     void setup() {
+      DEBUG_PRINTLN("WordClock::setup - done");
       updateDisplay();
       initDone = true;
     }
@@ -159,6 +161,7 @@ class WordClock : public Usermod {
         static int8_t lastMinute = -1;
         static int8_t lastHour = -1;
         if(lastMinute != my_minute || lastHour != my_hour) {
+          DEBUG_PRINTLN("WordClock::loop - minute changed");
           updateDisplay();
           lastMinute = my_minute;
           lastHour = my_hour;
@@ -446,6 +449,7 @@ class WordClock : public Usermod {
       if (inTransition || doTransition) {
         // executed once a transition is triggered
         if (doTransition) {
+          DEBUG_PRINTLN("WordClock::handleOverlayDraw - transition initialized");
           inTransition = true;
           doTransition = false;
           transitionStart = millis();
@@ -487,11 +491,11 @@ class WordClock : public Usermod {
         strip.setPixelColor(i, bg);
       }
 
-      // turn virtual LEDs off
-      for (int i=115; i<231; i++) 
-      {
-        strip.setPixelColor(i, 0);
-      }
+      // turn virtual LEDs off (some effects do not like this)
+      // for (int i=115; i<231; i++) 
+      // {
+      //   strip.setPixelColor(i, 0);
+      // }
     }
 
    
