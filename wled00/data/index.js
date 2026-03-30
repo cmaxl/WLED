@@ -1714,8 +1714,8 @@ async function requestJson(command=null, retry=0) {
 		if (command) {
 			command.v = true;
 		// !wordqlock: only set time property if not already set
-		// if (!command.time) command.time = Math.floor(Date.now() / 1000);
-			command.time = Math.floor(Date.now() / 1000);
+		if (!command.time) command.time = Math.floor(Date.now() / 1000);
+			// command.time = Math.floor(Date.now() / 1000);
 			var t = gId('tt');
 			if (t && t.validity.valid && command.transition==null) {
 				var tn = parseInt(t.value*10);
