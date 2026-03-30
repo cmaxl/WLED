@@ -2,17 +2,10 @@
 #include "wled.h"
 
 #ifdef ESP32
+#include <esp_app_format.h>
 #include <esp_ota_ops.h>
-#include <esp_spi_flash.h>
+#include <esp_flash.h>
 #include <mbedtls/sha256.h>
-
-#if !(ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 0, 0))
-// Shim for V3 IDF.  We only access the default flash anyways, so we can strip off the first argument.
-#define esp_flash_read(chip, buffer, address, length) spi_flash_read(address, buffer, length)
-#define esp_flash_erase_region(chip, start, length) spi_flash_erase_range(start, length)
-#define esp_flash_write(chip, buffer, address, length) spi_flash_write(address, buffer, length)
-#endif
-
 #endif
 
 // Platform-specific metadata locations
@@ -137,9 +130,9 @@ static bool beginOTA(AsyncWebServerRequest *request, UpdateContext* context)
   UsermodManager::onUpdateBegin(true); // notify usermods that update is about to begin (some may require task de-init)
   
   strip.suspend();
+  backupConfig(); // backup current config in case the update ends badly
   strip.resetSegments();  // free as much memory as you can
   context->needsRestart = true;
-  backupConfig(); // backup current config in case the update ends badly
 
   DEBUG_PRINTF_P(PSTR("OTA Update Start, %x --> %x\n"), (uintptr_t)request,(uintptr_t) context);
 
@@ -280,6 +273,19 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
     // Upload complete
     context->uploadComplete = true;
   }
+}
+
+void markOTAvalid() {
+  #ifndef ESP8266
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  esp_ota_img_states_t ota_state;
+  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+      esp_ota_mark_app_valid_cancel_rollback(); // only needs to be called once, it marks the ota_state as ESP_OTA_IMG_VALID
+      DEBUG_PRINTLN(F("Current firmware validated"));
+    }
+  }
+  #endif
 }
 
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
@@ -447,7 +453,7 @@ String getBootloaderSHA256Hex() {
   for (int i = 0; i < 32; i++) {
     char b1 = bootloaderSHA256Cache[i];
     char b2 = b1 >> 4;
-    b1 &= 0x0F;
+    b1 &= 0x0F; b2 &= 0x0F;
     b1 += '0'; b2 += '0';
     if (b1 > '9') b1 += 39;
     if (b2 > '9') b2 += 39;
