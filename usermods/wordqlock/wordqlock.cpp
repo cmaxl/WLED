@@ -463,8 +463,11 @@ class WordQlock : public Usermod {
         if (transitionStep > 255) transitionStep = 255;
       }
 
+      const Segment &face = strip.getSegment(0);
+      const Segment &dots = strip.getSegment(1);
+      const Segment &background = strip.getSegment(2);
+
       // loop over all LEDs relevant to the clock
-      // copy each color from the virtual strip as the background (will be black if not configured)
       for (int i=0; i<114; i++) {
         
         // continue if LED is already on and will stay on in a transition
@@ -472,11 +475,16 @@ class WordQlock : public Usermod {
           continue;
         }
 
-        // copy color from virtual to physical strip (if not a dot) and apply transition
-        uint32_t bg = (i < 110) ? strip.getPixelColor(i + 121) : 0;
+        uint32_t bg = BLACK;
+        // copy color from background to foreground (face) and apply transition, a dot only uses black
+        // only copy if background segment is active and is on
+        if(background.isActive() && background.getOption(2) && (i < 110))
+          bg = background.getPixelColor(i);
 
         if (inTransition) {
-          uint32_t pxl = (i < 110) ? strip.getPixelColor(i) : strip.getPixelColor(i);
+          // if face or dots are the mainSegment it does not matter
+          // get the current pixel color of foreground
+          uint32_t pxl = (i < 110) ? face.getPixelColor(i) : dots.getPixelColor(i-110);
           // Pixel needs fade in
           if(maskLEDsOn[i] && !maskLEDs_previous[i]) {
             bg = color_blend(bg, pxl, transitionStep);
@@ -489,12 +497,6 @@ class WordQlock : public Usermod {
 
         strip.setPixelColor(i, bg);
       }
-
-      // turn virtual LEDs off (some effects do not like this)
-      // for (int i=115; i<231; i++) 
-      // {
-      //   strip.setPixelColor(i, 0);
-      // }
     }
 
    
