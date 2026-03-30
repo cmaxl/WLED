@@ -1,5 +1,5 @@
-#ifndef WC_SYMBOLS_H
-#define WC_SYMBOLS_H
+#ifndef WQ_SYMBOLS_H
+#define WQ_SYMBOLS_H
 
 #include "wled.h"
 

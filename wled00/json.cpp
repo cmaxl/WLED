@@ -665,7 +665,7 @@ void serializeState(JsonObject root, bool forPreset, bool includeBri, bool segme
     root[F("lor")] = realtimeOverride;
   }
 
-  usermods.addToJsonPreset(root);
+  UsermodManager::addToJsonPreset(root);
 
   root[F("mainseg")] = strip.getMainSegmentId();
 

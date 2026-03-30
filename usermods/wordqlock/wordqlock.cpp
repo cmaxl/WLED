@@ -1,9 +1,7 @@
-#pragma once
-
 #include "wled.h"
 
-#include "wc_languages.h"
-#include "wc_symbols.h"
+#include "wq_languages.h"
+#include "wq_symbols.h"
 
 /*
  * Usermods allow you to add own functionality to WLED more easily
@@ -24,7 +22,7 @@
  */
 
 //class name. Use something descriptive and leave the ": public Usermod" part :)
-class WordClock : public Usermod {
+class WordQlock : public Usermod {
   private:
     //Private class members. You can declare variables and functions only accessible to your usermod here
     const int8_t maskMinuteDots[4] = {110, 111, 112, 113};
@@ -34,7 +32,7 @@ class WordClock : public Usermod {
       maskLEDs_previous[114] = {0};
     int8_t maskBuffer[WQ_MASK_SIZE] = {0};
 
-    WordclockLanguage *language = getLanguageByIndex(languageIndex);
+    wqLanguage *language = getLanguageByIndex(languageIndex);
     String languageId = language->id;
 
     bool
@@ -101,12 +99,12 @@ class WordClock : public Usermod {
 
     void changeLanguage(String newLang) {
       for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
-        WordclockLanguage *wl = getLanguageByIndex(i);
+        wqLanguage *wl = getLanguageByIndex(i);
         if (newLang == wl->id) {
           languageIndex = i;
           language = wl;
           languageId = language->id;
-          DEBUG_PRINT("WordClock::changeLanguage - new: "); DEBUG_PRINT(language->name);
+          DEBUG_PRINT("WordQlock::changeLanguage - new: "); DEBUG_PRINT(language->name);
           updateDisplay();
           return;
         }
@@ -122,7 +120,7 @@ class WordClock : public Usermod {
      * You can use it to initialize variables, sensors or similar.
      */
     void setup() {
-      DEBUG_PRINTLN("WordClock::setup - done");
+      DEBUG_PRINTLN("WordQlock::setup - done");
       updateDisplay();
       initDone = true;
     }
@@ -161,7 +159,7 @@ class WordClock : public Usermod {
         static int8_t lastMinute = -1;
         static int8_t lastHour = -1;
         if(lastMinute != my_minute || lastHour != my_hour) {
-          DEBUG_PRINTLN("WordClock::loop - minute changed");
+          DEBUG_PRINTLN("WordQlock::loop - minute changed");
           updateDisplay();
           lastMinute = my_minute;
           lastHour = my_hour;
@@ -200,7 +198,7 @@ class WordClock : public Usermod {
       uiDomString += FPSTR(_shorthand);
       uiDomString += F(":{language:this.value}})\">");
       for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
-        WordclockLanguage *wl = getLanguageByIndex(i);
+        wqLanguage *wl = getLanguageByIndex(i);
         uiDomString += F("<option value=\"");
         uiDomString += wl->id;
         uiDomString += F("\"");
@@ -429,7 +427,7 @@ class WordClock : public Usermod {
     {
       oappend(SET_F("dd=addDropdown('")); oappend(String(FPSTR(_name)).c_str()); oappend(SET_F("','language');"));
       for (uint8_t i = 0; i < WQ_NUMBER_OF_LANGUAGES; i++) {
-        WordclockLanguage *wl = getLanguageByIndex(i);
+        wqLanguage *wl = getLanguageByIndex(i);
         oappend(SET_F("addOption(dd,'"));
         // example: addOption(dd,'EN (english)','EN');
         oappend(wl->id);
@@ -456,7 +454,7 @@ class WordClock : public Usermod {
       if (inTransition || doTransition) {
         // executed once a transition is triggered
         if (doTransition) {
-          DEBUG_PRINTLN("WordClock::handleOverlayDraw - transition initialized");
+          DEBUG_PRINTLN("WordQlock::handleOverlayDraw - transition initialized");
           inTransition = true;
           doTransition = false;
           transitionStart = millis();
@@ -520,8 +518,11 @@ class WordClock : public Usermod {
 };
 
 // strings to reduce flash memory usage (used more than twice)
-const char WordClock::_name[]       PROGMEM = "Wordclock";
-const char WordClock::_shorthand[]  PROGMEM = "wq";
-const char WordClock::_enabled[]    PROGMEM = "enabled";
-const char WordClock::_on[]         PROGMEM = "on";
-const char WordClock::_language[]   PROGMEM = "language";
+const char WordQlock::_name[]       PROGMEM = "Wordqlock";
+const char WordQlock::_shorthand[]  PROGMEM = "wq";
+const char WordQlock::_enabled[]    PROGMEM = "enabled";
+const char WordQlock::_on[]         PROGMEM = "on";
+const char WordQlock::_language[]   PROGMEM = "language";
+
+static WordQlock wordqlock;
+REGISTER_USERMOD(wordqlock);

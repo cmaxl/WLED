@@ -4,7 +4,7 @@
 
 #define WQ_MASK_SIZE 12
 
-struct WordclockLanguage {
+struct wqLanguage {
     const char *id;
     const char *name;
     const int8_t maskPrefix[WQ_MASK_SIZE];
@@ -36,7 +36,7 @@ EN (english)
     S E V E N T W E L V E
     T E N S E O' C L O C K
 */
-static WordclockLanguage language_en PROGMEM = {
+static wqLanguage language_en PROGMEM = {
     "EN", // id
     "english", // name
     {0, 1, 3, 4, -1}, // maskPrefix
@@ -89,7 +89,7 @@ DE (german)
     S I E B E N Z W Ö L F
     Z E H N E U N K U H R
 */
-static WordclockLanguage language_de PROGMEM = {
+static wqLanguage language_de PROGMEM = {
     "DE", // id
     "german", // name
     {0, 1, 3, 4, 5, -1}, // maskPrefix
@@ -158,7 +158,7 @@ D4 (swabian)
     S I E B E N Z W Ö L F
     Z E H N E U N K U H R
 */
-static WordclockLanguage language_d4 PROGMEM = {
+static wqLanguage language_d4 PROGMEM = {
     "D4",
     "swabian on DE layout",
     {0, 1, 3, 4, 5, -1},
@@ -213,7 +213,7 @@ DE_ALT (german alternative stencil)
     W A C H T Z E H N R S
     B S E C H S F M U H R
 */
-static WordclockLanguage language_de_alt PROGMEM = {
+static wqLanguage language_de_alt PROGMEM = {
     "DE_ALT",
     "german alternative layout",
     {0, 1, 3, 4, 5, -1},
@@ -267,7 +267,7 @@ D4 (swabian alternative stencil)
     W A C H T Z E H N R S
     B S E C H S F M U H R
 */
-static WordclockLanguage language_d4_alt PROGMEM = {
+static wqLanguage language_d4_alt PROGMEM = {
     "D4_ALT",
     "swabian alternative layout",
     {0, 1, 3, 4, 5, -1},
@@ -309,7 +309,7 @@ static WordclockLanguage language_d4_alt PROGMEM = {
 };
 
 #define WQ_NUMBER_OF_LANGUAGES 5
-WordclockLanguage* getLanguageByIndex(uint8_t idx) {
+wqLanguage* getLanguageByIndex(uint8_t idx) {
   switch(idx) {
     case 0: return &language_en;
     case 1: return &language_de;

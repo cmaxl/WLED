@@ -1,0 +1,5 @@
+{
+  "name": "wordqlock",
+  "build": { "libArchive": false },
+  "dependencies": {}
+}

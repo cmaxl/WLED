@@ -395,6 +395,7 @@ namespace UsermodManager {
   void connected();
   void appendConfigData(Print&);
   void addToJsonState(JsonObject& obj);
+  void addToJsonPreset(JsonObject& obj);
   void addToJsonInfo(JsonObject& obj);
   void readFromJsonState(JsonObject& obj);
   void addToConfig(JsonObject& obj);
