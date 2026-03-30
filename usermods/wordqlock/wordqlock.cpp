@@ -211,12 +211,6 @@ class WordQlock : public Usermod {
       }
       infoArr.add(uiDomString);
 
-      // link to tools like pxmagic.htm
-      JsonArray navlink = user.createNestedArray("Tools");
-      uiDomString = F("<button onclick=\"window.open(getURL(\"/pxmagic.htm\")\" class=\"btn ibtn\">Pixel Magic</button>");
-      // uiDomString += F("<button onclick=\"window.open(getURL(\"/other.htm\")\" class=\"btn ibtn\">Pixel Magic</button>");
-      navlink.add(uiDomString);
-
       #ifdef WLED_DEBUG
       // Time setter gets currently set time (from server via json/info) 
       // and in/decreases to next 5 min or hour
