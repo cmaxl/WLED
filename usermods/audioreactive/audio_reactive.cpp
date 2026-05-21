@@ -140,7 +140,7 @@ static uint8_t binNum = 8;           // Used to select the bin for FFT based bea
 #if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32C3)
 #define UM_AUDIOREACTIVE_USE_INTEGER_FFT // always use integer FFT on ESP32-S2 and ESP32-C3
 #endif
-#endif
+#endif // UM_AUDIOREACTIVE_USE_ARDUINO_FFT
 
 #if !defined(UM_AUDIOREACTIVE_USE_INTEGER_FFT)
 using FFTsampleType = float;
@@ -296,17 +296,17 @@ void FFTcode(void * parameter)
   ArduinoFFT<float> FFT = ArduinoFFT<float>(valFFT, vImag, samplesFFT, SAMPLE_RATE, true);
 #elif !defined(UM_AUDIOREACTIVE_USE_INTEGER_FFT)
   // allocate and initialize FFT buffers on first call
-  // note: free() is never used on these pointers. If it ever is implemented, this implementation can cause memory leaks (need to free raw pointers)
   if (valFFT == nullptr) {
-    float* raw_buffer = (float*)heap_caps_malloc((2 * samplesFFT * sizeof(float)) + 16, MALLOC_CAP_8BIT);
-    if ((raw_buffer == nullptr)) return; // something went wrong
-    valFFT = (float*)(((uintptr_t)raw_buffer + 15) & ~15);  // SIMD requires aligned memory to 16-byte boundary. note in IDF5 there is MALLOC_CAP_SIMD available
+    valFFT = (float*)heap_caps_aligned_calloc(16, 2 * samplesFFT, sizeof(float), MALLOC_CAP_8BIT); // SIMD requires aligned memory to 16-byte boundary. note in IDF5 there is MALLOC_CAP_SIMD available
+    if ((valFFT == nullptr)) return; // something went wrong
   }
   // create window
   if (windowFFT == nullptr) {
-    float* raw_buffer = (float*)heap_caps_malloc((samplesFFT * sizeof(float)) + 16, MALLOC_CAP_8BIT);
-    if ((raw_buffer == nullptr)) return; // something went wrong
-    windowFFT = (float*)(((uintptr_t)raw_buffer + 15) & ~15);  // SIMD requires aligned memory to 16-byte boundary
+    windowFFT = (float*)heap_caps_aligned_calloc(16, samplesFFT, sizeof(float), MALLOC_CAP_8BIT); // SIMD requires aligned memory to 16-byte boundary. note in IDF5 there is MALLOC_CAP_SIMD available
+    if ((windowFFT == nullptr)) {
+      heap_caps_free(valFFT); valFFT = nullptr;
+      return; // something went wrong
+    }
   }
   if (dsps_fft2r_init_fc32(NULL, samplesFFT) != ESP_OK) return; // initialize FFT tables
   // create window function for FFT
@@ -316,16 +316,20 @@ void FFTcode(void * parameter)
   dsps_wind_flat_top_f32(windowFFT, samplesFFT);
 #endif
 #else
-  // allocate and initialize integer FFT buffers on first call
-  if (valFFT == nullptr) valFFT = (int16_t*) calloc(sizeof(int16_t), samplesFFT * 2);
-  if ((valFFT == nullptr)) return; // something went wrong
+  // use integer FFT - allocate and initialize integer FFT buffers on first call, 4 bytes aligned (just in case, even if not strictly needed for int16_t)
+  if (valFFT == nullptr) valFFT = (int16_t*) heap_caps_aligned_calloc(4, samplesFFT * 2, sizeof(int16_t), MALLOC_CAP_8BIT); 
   // create window
-  if (windowFFT == nullptr) windowFFT = (int16_t*) calloc(sizeof(int16_t), samplesFFT);
-  if ((windowFFT == nullptr)) return; // something went wrong
-  if (dsps_fft2r_init_sc16(NULL, samplesFFT) != ESP_OK) return; // initialize FFT tables
+  if (windowFFT == nullptr) windowFFT = (int16_t*) heap_caps_aligned_calloc(4, samplesFFT, sizeof(int16_t), MALLOC_CAP_8BIT);
   // create window function for FFT
-  float *windowFloat = (float*) calloc(sizeof(float), samplesFFT); // temporary buffer for window function
-  if ((windowFloat == nullptr)) return; // something went wrong
+  float *windowFloat = (float*) heap_caps_aligned_calloc(4, samplesFFT, sizeof(float), MALLOC_CAP_8BIT); // temporary buffer for window function
+  if (windowFloat == nullptr || windowFFT == nullptr || valFFT == nullptr) { // something went wrong
+    if (windowFloat) heap_caps_free(windowFloat);
+    if (windowFFT) heap_caps_free(windowFFT); windowFFT = nullptr;
+    if (valFFT) heap_caps_free(valFFT); valFFT = nullptr;
+    return;
+  }
+  if (dsps_fft2r_init_sc16(NULL, samplesFFT) != ESP_OK) return; // initialize FFT tables
+
 #ifdef FFT_PREFER_EXACT_PEAKS
   dsps_wind_blackman_harris_f32(windowFloat, samplesFFT);
 #else
@@ -335,7 +339,7 @@ void FFTcode(void * parameter)
   for (int i = 0; i < samplesFFT; i++) {
     windowFFT[i] = (int16_t)(windowFloat[i] * 32767.0f);
   }
-  free(windowFloat); // free temporary buffer
+  heap_caps_free(windowFloat); // free temporary buffer
 #endif
 
   // see https://www.freertos.org/vtaskdelayuntil.html
@@ -468,7 +472,6 @@ void FFTcode(void * parameter)
       }
       FFT_Magnitude = FFT_Magnitude_int * 512; // scale to match raw float value
       FFT_MajorPeak = FFT_MajorPeak_int;
-      FFT_Magnitude = FFT_Magnitude_int;
 #endif
 #endif
       FFT_MajorPeak = constrain(FFT_MajorPeak, 1.0f, 11025.0f);   // restrict value to range expected by effects
@@ -758,6 +761,8 @@ class AudioReactive : public Usermod {
   private:
 #ifdef ARDUINO_ARCH_ESP32
 
+    static constexpr uint8_t SR_DMTYPE_NETWORK_ONLY = 254;
+
     #ifndef AUDIOPIN
     int8_t audioPin = -1;
     #else
@@ -879,6 +884,9 @@ class AudioReactive : public Usermod {
 #endif
     static const char _digitalmic[];
     static const char _addPalettes[];
+    static const char _palName0[];
+    static const char _palName1[];
+    static const char _palName2[];
     static const char UDP_SYNC_HEADER[];
     static const char UDP_SYNC_HEADER_v1[];
 
@@ -1439,7 +1447,7 @@ class AudioReactive : public Usermod {
           break;
         #endif
 
-        case 254: // dummy "network receive only" mode
+        case SR_DMTYPE_NETWORK_ONLY: // dummy "network receive only" mode
           if (audioSource) delete audioSource; audioSource = nullptr;
           disableSoundProcessing = true;
           audioSyncEnabled = 2; // force udp sound receive mode
@@ -1456,19 +1464,25 @@ class AudioReactive : public Usermod {
       }
       delay(250); // give microphone enough time to initialise
 
-      if (!audioSource && (dmType != 254)) enabled = false;// audio failed to initialise
+      if (!audioSource && (dmType != SR_DMTYPE_NETWORK_ONLY)) enabled = false;// audio failed to initialise
 #endif
       if (enabled) onUpdateBegin(false);                 // create FFT task, and initialize network
 
 
 #ifdef ARDUINO_ARCH_ESP32
-      if (FFT_Task == nullptr) enabled = false;          // FFT task creation failed
+      if (audioSource && FFT_Task == nullptr) enabled = false;          // FFT task creation failed
       if((!audioSource) || (!audioSource->isInitialized())) {  // audio source failed to initialize. Still stay "enabled", as there might be input arriving via UDP Sound Sync 
-      #ifdef WLED_DEBUG
-        DEBUG_PRINTLN(F("AR: Failed to initialize sound input driver. Please check input PIN settings."));
-      #else
-        DEBUGSR_PRINTLN(F("AR: Failed to initialize sound input driver. Please check input PIN settings."));
-      #endif
+#ifdef WLED_DEBUG
+        #define AR_INIT_DEBUG_PRINT DEBUG_PRINTLN
+#else
+        #define AR_INIT_DEBUG_PRINT DEBUGSR_PRINTLN
+#endif
+        if (dmType == SR_DMTYPE_NETWORK_ONLY) {
+          AR_INIT_DEBUG_PRINT(F("AR: No sound input driver configured - network receive only."));
+        } else {
+          AR_INIT_DEBUG_PRINT(F("AR: Failed to initialize sound input driver. Please check input PIN settings."));
+        }
+        #undef AR_INIT_DEBUG_PRINT
         disableSoundProcessing = true;
       }
 #endif
@@ -1951,14 +1965,10 @@ class AudioReactive : public Usermod {
         }
 #endif
       }
-      if (palettes > 0 && root.containsKey(F("rmcpal"))) {
-        // handle removal of custom palettes from JSON call so we don't break things
-        removeAudioPalettes();
-      }
     }
 
     void onStateChange(uint8_t callMode) override {
-      if (initDone && enabled && addPalettes && palettes==0 && customPalettes.size()<WLED_MAX_CUSTOM_PALETTES) {
+      if (initDone && enabled && addPalettes && palettes==0) {
         // if palettes were removed during JSON call re-add them
         createAudioPalettes();
       }
@@ -2123,6 +2133,9 @@ class AudioReactive : public Usermod {
       uiScript.print(F("addOption(dd,'Generic PDM',5);"));
     #endif
     uiScript.print(F("addOption(dd,'ES8388',6);"));
+      uiScript.print(F("addOption(dd,'None - network receive only',"));
+      uiScript.print(SR_DMTYPE_NETWORK_ONLY);
+      uiScript.print(F(");"));
     
       uiScript.print(F("dd=addDropdown(ux,'config:AGC');"));
       uiScript.print(F("addOption(dd,'Off',0);"));
@@ -2187,24 +2200,21 @@ class AudioReactive : public Usermod {
 
 void AudioReactive::removeAudioPalettes(void) {
   DEBUG_PRINTLN(F("Removing audio palettes."));
-  while (palettes>0) {
-    customPalettes.pop_back();
-    DEBUG_PRINTLN(palettes);
-    palettes--;
-  }
-  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(customPalettes.size());
+  palettes -= (int8_t)removeUsermodPalettes(_name);
+  if (palettes < 0) palettes = 0; // safeguard
 }
 
 void AudioReactive::createAudioPalettes(void) {
-  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(customPalettes.size());
   if (palettes) return;
   DEBUG_PRINTLN(F("Adding audio palettes."));
-  for (int i=0; i<MAX_PALETTES; i++)
-    if (customPalettes.size() < WLED_MAX_CUSTOM_PALETTES) {
-      customPalettes.push_back(CRGBPalette16(CRGB(BLACK)));
+  static const char *const palNames[MAX_PALETTES] PROGMEM = {_palName0, _palName1, _palName2};
+  for (int i=0; i<MAX_PALETTES; i++) {
+    if (usermodPalettes.size() < WLED_MAX_USERMOD_PALETTES) {
+      usermodPalettes.push_back({CRGBPalette16(CRGB(BLACK)), _name, (uint8_t)i, palNames[i]}); // start black, filled each loop by fillAudioPalettes()
       palettes++;
       DEBUG_PRINTLN(palettes);
     } else break;
+  }
 }
 
 // credit @netmindz ar palette, adapted for usermod @blazoncek
@@ -2238,9 +2248,10 @@ CRGB AudioReactive::getCRGBForBand(int x, int pal) {
 
 void AudioReactive::fillAudioPalettes() {
   if (!palettes) return;
-  size_t lastCustPalette = customPalettes.size();
-  if (int(lastCustPalette) >= palettes) lastCustPalette -= palettes;
-  for (int pal=0; pal<palettes; pal++) {
+  // Scan by name pointer identity to find the palettes we added, palIndex = 0/1/2... selects the getCRGBForBand variant, matching how the entries were created.
+  for (auto &ump : usermodPalettes) {
+    if (ump.name != _name) continue;
+    const int pal = ump.palIndex;
     uint8_t tcp[16];  // Needs to be 4 times however many colors are being used.
                       // 3 colors = 12, 4 colors = 16, etc.
 
@@ -2248,26 +2259,26 @@ void AudioReactive::fillAudioPalettes() {
     tcp[1] = 0;
     tcp[2] = 0;
     tcp[3] = 0;
-    
+
     CRGB rgb = getCRGBForBand(1, pal);
     tcp[4] = 1;  // anchor of first color
     tcp[5] = rgb.r;
     tcp[6] = rgb.g;
     tcp[7] = rgb.b;
-    
+
     rgb = getCRGBForBand(128, pal);
     tcp[8] = 128;
     tcp[9] = rgb.r;
     tcp[10] = rgb.g;
     tcp[11] = rgb.b;
-    
+
     rgb = getCRGBForBand(255, pal);
     tcp[12] = 255;  // anchor of last color - must be 255
     tcp[13] = rgb.r;
     tcp[14] = rgb.g;
     tcp[15] = rgb.b;
 
-    customPalettes[lastCustPalette+pal].loadDynamicGradientPalette(tcp);
+    ump.palette.loadDynamicGradientPalette(tcp);
   }
 }
 
@@ -2282,7 +2293,10 @@ const char AudioReactive::_inputLvl[]   PROGMEM = "inputLevel";
 const char AudioReactive::_analogmic[]  PROGMEM = "analogmic";
 #endif
 const char AudioReactive::_digitalmic[] PROGMEM = "digitalmic";
-const char AudioReactive::_addPalettes[]       PROGMEM = "add-palettes";
+const char AudioReactive::_addPalettes[]          PROGMEM = "add-palettes";
+const char AudioReactive::_palName0[]              PROGMEM = "Ratio";
+const char AudioReactive::_palName1[]              PROGMEM = "Hue";
+const char AudioReactive::_palName2[]              PROGMEM = "Spectrum";
 const char AudioReactive::UDP_SYNC_HEADER[]    PROGMEM = "00002"; // new sync header version, as format no longer compatible with previous structure
 const char AudioReactive::UDP_SYNC_HEADER_v1[] PROGMEM = "00001"; // old sync header version - need to add backwards-compatibility feature
 
