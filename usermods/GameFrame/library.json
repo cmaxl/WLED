@@ -1,0 +1,12 @@
+{
+  "name": "GameFrame",
+  "build": {
+    "libArchive": false,
+    "flags": [
+      "WLED_USE_SD_MMC"
+    ]
+  },
+  "dependencies": {
+    "sd_card": ""
+  }
+}
