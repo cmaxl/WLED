@@ -3,16 +3,9 @@
 
 #include "wled.h"
 
-// SD connected via MMC / SPI
-#if defined(WLED_USE_SD_MMC)
-  #define SD_ADAPTER SD_MMC
-  #include "SD_MMC.h"
-// SD connected via SPI (adjustable via usermod config)
-#elif defined(WLED_USE_SD_SPI)
-  #define SD_ADAPTER SD
-  #include "SD.h"
-  #include "SPI.h"
-#endif
+#define SD_ADAPTER SD_MMC
+#include "SD_MMC.h"
+
 
 // Maximum length for filename, excluding NULL char 26 chars allows an
 // 8.3 filename instead and 8.3 directory with a leading slash

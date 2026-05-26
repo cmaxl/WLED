@@ -1,11 +1,11 @@
-#pragma once
-
 #include "wled.h"
 
-#include "IniFileLite.h"
+#define USED_STORAGE_FILESYSTEMS "SD MMC, LittleFS"
+#define SD_ADAPTER SD_MMC
+#include "SD_MMC.h"
+void listDir( const char * dirname, uint8_t levels);
 
-// TODO fix the inifile include
-// TODO improve commenting
+#include "IniFileLite.h"
 
 #define GF_DEBUG_FILES 0
 
@@ -47,13 +47,13 @@ static dd_options_t clockDesigns PROGMEM[] = {
 
 class GameFrame : public Usermod
 {
-public:
 private:
   File myFile;
   bool
       enabled = false,
       initDone = false,
       ready = false,
+      sdInitDone = false,
       sdMounted = false,
       updateConfig = false,
       logoPlayed = false,              // plays logo animation correctly reardless of playMode
@@ -116,11 +116,6 @@ private:
       matrix[256] = {0},
       secondHandColor = 0; // color grabbed from digits.bmp for second hand;
 
-#ifdef SD_ADAPTER
-  UsermodSdCard *sdCard;
-#else
-  void *sdCard = nullptr;
-#endif
 
   // strings to reduce flash memory usage (used more than twice)
   static const char
@@ -241,22 +236,69 @@ private:
     updateInterfaces(CALL_MODE_WS_SEND);
   }
 
+  void init_SD_MMC() {
+    if(sdInitDone) return;
+    bool returnOfInitSD = false;
+    returnOfInitSD = SD_ADAPTER.begin();
+    DEBUG_PRINTF("[%s] MMC begin\n", _name);
+
+    if(!returnOfInitSD) {
+      DEBUG_PRINTF("[%s] MMC begin failed!\n", _name);
+      sdInitDone = false;
+      return;
+    }
+
+    sdInitDone = true;
+  }
+
+  //checks if the file is available on SD card
+  bool file_onSD(const char *filepath)
+  {
+    uint8_t cardType = SD_ADAPTER.cardType();
+    if(cardType == CARD_NONE) {
+      DEBUG_PRINTF("[%s] not attached / cardType none\n", _name);
+      return false; // no SD card attached
+    }
+    if(cardType == CARD_MMC || cardType == CARD_SD || cardType == CARD_SDHC)
+    {
+      return SD_ADAPTER.exists(filepath);
+    }
+
+    return false; // unknown card type
+  }
+
+  void listDir( const char * dirname, uint8_t levels){
+      DEBUG_PRINTF("Listing directory: %s\n", dirname);
+
+      File root = SD_ADAPTER.open(dirname);
+      if(!root){
+          DEBUG_PRINTF("Failed to open directory\n");
+          return;
+      }
+      if(!root.isDirectory()){
+          DEBUG_PRINTF("Not a directory\n");
+          return;
+      }
+
+      File file = root.openNextFile();
+      while(file){
+          if(file.isDirectory()){
+              DEBUG_PRINTF("  DIR : %s\n",file.name());
+              if(levels){
+                  listDir(file.name(), levels -1);
+              }
+          } else {
+              DEBUG_PRINTF("  FILE: %s  SIZE: %d\n",file.name(), file.size());
+          }
+          file = root.openNextFile();
+      }
+  }
+
   void mountSD()
   {
     if (!sdMounted)
     {
-      if (sdCard != nullptr)
-      {
-        sdCard->setup();
-        if (SD_ADAPTER.cardType() == CARD_NONE)
-        {
-          DEBUG_PRINTLN(F("GameFrame: no SD card detected!"));
-          drawSDError();
-          return;
-        }
-        DEBUG_PRINTLN(F("GameFrame: SD card mounted"));
-        sdMounted = file_onSD("/");
-      }
+      sdMounted = file_onSD("/");
     }
   }
 
@@ -1437,17 +1479,22 @@ private:
       oappend(SET_F("addOption(dd,'"));
       oappend(options[i].name);
       oappend(SET_F("',"));
-      oappendi(options[i].value);
+      char str[5];
+      sprintf(str, "%d", options[i].value);
+      oappend(str);
       oappend(SET_F(");"));
     }
   }
 
 public:
-  void setup()
+  void setup() override
   {
-#ifdef SD_ADAPTER
-    sdCard = (UsermodSdCard *)usermods.lookup(USERMOD_ID_SD_CARD);
-#endif
+    DEBUG_PRINTF("[%s] usermod loaded \n", _name);
+    init_SD_MMC();
+
+    #if defined(SD_ADAPTER) && defined(SD_PRINT_HOME_DIR)  
+      listDir("/", 0);        
+    #endif
 
     if (enabled)
       initGameFrame();
@@ -1459,7 +1506,7 @@ public:
    * connected() is called every time the WiFi is (re)connected
    * Use it to initialize network interfaces
    */
-  void connected()
+  void connected() override
   {
     // Serial.println("Connected to WiFi!");
     //  TODO: add wifi symbol animation
@@ -1475,14 +1522,10 @@ public:
    * 2. Try to avoid using the delay() function. NEVER use delays longer than 10 milliseconds.
    *    Instead, use a timer check as shown here.
    */
-  void loop()
+  void loop() override
   {
 
     if (!enabled)
-      return;
-    if (sdCard == nullptr)
-      return;
-    if (!sdCard->configSdEnabled)
       return;
     if (!ready)
       return;
@@ -1555,7 +1598,7 @@ public:
    *
    * Add
    */
-  void addToJsonInfo(JsonObject &root)
+  void addToJsonInfo(JsonObject &root) override
   {
     JsonObject user = root["u"];
     if (user.isNull())
@@ -1644,7 +1687,7 @@ public:
    * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
    * Below it is shown how this could be used for e.g. a light sensor
    */
-  void addToJsonState(JsonObject &root)
+  void addToJsonState(JsonObject &root) override
   {
     if (!initDone)
       return; // prevent crash on boot applyPreset()
@@ -1663,7 +1706,7 @@ public:
    * readFromJsonState() can be used to receive data clients send to the /json/state part of the JSON API (state object).
    * Values in the state object may be modified by connected clients
    */
-  void readFromJsonState(JsonObject &root)
+  void readFromJsonState(JsonObject &root) override
   {
     if (!initDone)
       return; // prevent crash on boot applyPreset()
@@ -1756,7 +1799,7 @@ public:
    *
    * I highly recommend checking out the basics of ArduinoJson serialization and deserialization in order to use custom settings!
    */
-  void addToConfig(JsonObject &root)
+  void addToConfig(JsonObject &root) override
   {
     JsonObject top = root.createNestedObject(FPSTR(_name));
     top[FPSTR(_enabled)] = enabled;
@@ -1784,7 +1827,7 @@ public:
    *
    * This function is guaranteed to be called on boot, but could also be called every time settings are updated
    */
-  bool readFromConfig(JsonObject &root)
+  bool readFromConfig(JsonObject &root) override
   {
     // default settings values could be set here (or below using the 3-argument getJsonValue()) instead of in the class definition or constructor
     // setting them inside readFromConfig() is slightly more robust, handling the rare but plausible use case of single value being missing after boot (e.g. if the cfg.json was manually edited and a value was removed)
@@ -1809,7 +1852,7 @@ public:
    * it may add additional metadata for certain entry fields (adding drop down is possible)
    * be careful not to add too much as oappend() buffer is limited to 3k
    */
-  void appendConfigData()
+  void appendConfigData() override
   {
     appendAddDropdown(displayModes, FPSTR(_displayMode));
     appendAddDropdown(playModes, FPSTR(_playMode));
@@ -1823,7 +1866,7 @@ public:
    * Use this to blank out some LEDs or set them to a different color regardless of the set effect mode.
    * Commonly used for custom clocks (Cronixie, 7 segment)
    */
-  void handleOverlayDraw()
+  void handleOverlayDraw() override
   {
     if (!enabled)
       return;
@@ -1859,3 +1902,7 @@ const char GameFrame::_enableSecondHand[] PROGMEM = "EnableSecondHand";
 const char GameFrame::_clockAnimationLength[] PROGMEM = "ClockAnimationLength";
 const char GameFrame::_clockDesign[] PROGMEM = "ClockDesign";
 const char GameFrame::_mountSD[] PROGMEM = "sd";
+
+
+static GameFrame gameframe;
+REGISTER_USERMOD(gameframe);
